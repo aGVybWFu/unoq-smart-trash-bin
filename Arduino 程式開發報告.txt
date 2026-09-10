@@ -1,0 +1,577 @@
+Arduino Uno Q 雙核心架構之 C++ 與 Python 進階編程與應用深度解析
+Arduino Uno Q 代表了邊緣運算（Edge Computing）與微控制器領域的一次重大架構典範轉移。透過結合專司高階運算與人工智慧處理的 Qualcomm Dragonwing QRB2210 微處理器（MPU），以及負責低延遲、即時硬體控制的 STMicroelectronics STM32U585 微控制器（MCU），此平台提供了一個高度混合的異質多核心（Heterogeneous Multicore）開發環境 1。在軟體層面，這種被稱為「雙腦（Dual-Brain）」的架構要求開發者必須同時熟稔基於 Zephyr 即時作業系統（RTOS）的 Arduino C++ 語法，以及運行於 Debian Linux 系統環境下的 Python 腳本 1。
+本報告旨在針對 Arduino Uno Q 平台，進行極度詳盡的 C++ 與 Python 語法梳理。內容將涵蓋從基礎的通用輸入輸出（GPIO）操作，到進階的直接暫存器存取（Direct Register Access）、依賴 MessagePack 的遠端程序呼叫（RPC）非同步通訊，以及多執行緒與邊緣 AI 視覺應用範例。本報告摒棄基礎的硬體連接與初始開機設定，專注於為高階軟體與韌體開發者提供一份具備學術深度與工程廣度的技術語法彙編。
+第一章：雙核心硬體架構與作業系統抽象層
+在探討具體的程式語法之前，必須深刻理解 Uno Q 的運作基礎與記憶體架構。只有釐清兩個處理器各自的作業系統邊界，開發者才能正確地將運算任務分派至合適的處理單元。
+核心處理器規格與職責劃分
+Arduino Uno Q 的硬體設計將非確定性（Non-deterministic）的高階任務與確定性（Deterministic）的底層控制徹底分離 4。
+
+處理器單元晶片型號核心架構與時脈作業系統核心職責與硬體資源微處理器 (MPU)Qualcomm QRB2210Quad-core ARM Cortex-A53 @ 2.0 GHzDebian Linux (支援 Upstream)負責運行 Python 腳本、AI 模型推論（搭配 Adreno 702 GPU）、網頁伺服器、Wi-Fi 5 與 Bluetooth 5.1 通訊協定堆疊。配備 2GB 或 4GB LPDDR4X RAM 與 16GB 或 32GB eMMC 儲存空間 1。微控制器 (MCU)STM32U585ARM Cortex-M33 @ 160 MHzArduino Core on Zephyr RTOS負責毫秒至微秒級別的即時控制、感測器資料擷取（ADC/I2C/SPI）、PWM 馬達控制。內建 2MB Flash 與 786 kB SRAM 1。電壓域與接腳定義的程式碼考量
+與傳統 Arduino Uno 的 5V 邏輯不同，Uno Q 的內部設計存在多個不同的電壓域（Voltage Domains），這直接影響了 C++ 程式碼中對輸入/輸出接腳的操作規範 8。
+● JDIGITAL 與 JANALOG 介面： 這些是開發者最常接觸的 GPIO 與類比接腳，由 STM32U585 直接控制。它們的邏輯電平為 3.3V，且大多數具備 5V 容忍度（5V Tolerant）。然而，開發者必須在程式碼中特別注意，類比接腳 A0（PA4）與 A1（PA5）不具備 5V 容忍度，若在程式中誤讀過高電壓，將導致微控制器損壞 6。
+● JCTL 與 JMISC 介面： 這些包含了由 QRB2210 直接控制的 1.8V 邏輯接腳。在撰寫進階的 Linux 底層 C 或 Python 腳本時，必須確保不得透過這些接腳輸出或輸入 3.3V 訊號 8。
+第二章：微控制器端 (STM32U585) 之 C++ 語法與硬體控制
+STM32U585 端繼承了標準的 Arduino API，同時也提供了針對高效能應用的底層操作介面。程式碼被編譯後，將作為 Zephyr RTOS 上的一個執行緒運行。
+基礎通用輸入輸出 (GPIO) 與高解析度類比控制
+MCU 端的基礎語法與傳統 Arduino 保持高度一致，但在 Uno Q 的硬體定義上，開發者可利用其升級的 14-bit 類比數位轉換器（ADC）獲得更高的精確度 6。
+
+C++
+
+
+// 宣告接腳：利用 Arduino 標準命名慣例
+const int ledPin = LED_BUILTIN; 
+const int btnPin = 2;
+const int analogPin = A0; // 對應 STM32 的 PA4，具備 14-bit ADC 功能
+
+void setup() {
+  pinMode(ledPin, OUTPUT);
+  pinMode(btnPin, INPUT_PULLUP); // 啟用內部上拉電阻
+  
+  // Uno Q 板載的 RGB 矩陣與部分內建 LED 邏輯為低電位觸發 (Active Low)
+  digitalWrite(ledPin, HIGH); // 輸出 HIGH 以關閉 LED
+}
+
+void loop() {
+  int buttonState = digitalRead(btnPin);
+  
+  if (buttonState == LOW) {
+    digitalWrite(ledPin, LOW); // 按鈕按下時，輸出 LOW 以點亮 LED
+  } else {
+    digitalWrite(ledPin, HIGH);
+  }
+  
+  // 讀取高解析度類比數值，範圍將從傳統的 0-1023 提升至更高的解析度範圍
+  int sensorValue = analogRead(analogPin);
+  
+  delay(10); // 讓出 CPU 時間，避免 Zephyr RTOS 看門狗超時
+}
+
+值得注意的是，Uno Q 板載了四組 RGB LED，其中兩組（LED1、LED2）與 MPU 相連，另外兩組（LED3、LED4）則由 MCU 直接控制 10。在 C++ 中對這些 LED 進行操作時，必須謹記其 GPIO_ACTIVE_LOW 的硬體設計特性，這在 Zephyr 的 Device Tree 結構中已有明確定義 7。
+硬體中斷控制 (Hardware Interrupts) 與 RTOS 限制
+為了處理時間關鍵（Time-critical）事件，如旋轉編碼器的脈衝讀取或緊急停止按鈕，C++ 端提供了硬體中斷語法 attachInterrupt()。由於底層為 Zephyr RTOS，中斷服務常式（Interrupt Service Routine, ISR）的執行會強制暫停目前的任務上下文，因此必須盡可能簡短。
+
+C++
+
+
+const byte interruptPin = 2; // 支援外部中斷的數位接腳
+// 變數必須宣告為 volatile，確保編譯器不會將其快取至暫存器中，
+// 保證每次讀取都直接來自 RAM，以反映 ISR 中的最新狀態。
+volatile byte state = LOW; 
+
+void setup() {
+  pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(interruptPin, INPUT_PULLUP);
+  
+  // 將接腳綁定至中斷服務常式，觸發條件為 CHANGE (狀態改變，支援 RISING, FALLING, CHANGE)
+  attachInterrupt(digitalPinToInterrupt(interruptPin), blinkISR, CHANGE);
+}
+
+void loop() {
+  // 主迴圈根據中斷改變的狀態執行硬體操作
+  digitalWrite(LED_BUILTIN, state);
+}
+
+// 中斷服務常式 (ISR)
+void blinkISR() {
+  state =!state;
+}
+
+架構層面的嚴格警告： 開發者在撰寫 ISR 時，嚴禁在其中使用 Serial.print() 或呼叫 Bridge.call() 6。Serial.print() 在 Arduino 核心中往往依賴中斷來清空輸出緩衝區，若在 ISR 內部呼叫，將導致中斷嵌套死結 11。同樣地，Bridge.call() 涉及複雜的 MessagePack 序列化與跨處理器序列傳輸，在 ISR 中執行此類阻塞型（Blocking）函式將直接導致整個 STM32 微控制器崩潰或觸發硬體錯誤（Hard Fault）。
+通訊匯流排介面：I2C 與 SPI
+Arduino Uno Q 提供了多組硬體 I2C 與 SPI 介面。由於整合了 Qwiic 模組化生態系，在 I2C 介面的呼叫上存在特定物件區分 6。
+I2C 語法與多重匯流排
+標準的 Arduino 排針（SDA/D20, SCL/D21）預設綁定至 Wire 物件，而板載的 Qwiic 擴充介面（對應微控制器的 PD12/PD13，為 I2C4）則對應 Wire1 物件 6。
+
+C++
+
+
+#include <Wire.h>
+
+void setup() {
+  // 根據連接的實體介面選擇初始化的物件
+  Wire.begin();   // 初始化 JDIGITAL 標頭上的標準 I2C (D20, D21)
+  Wire1.begin();  // 初始化 JQWIIC 連接器上的 I2C
+}
+
+void loop() {
+  // 向 I2C 位址為 0x3C 的設備（例如 OLED 顯示器）寫入資料
+  Wire.beginTransmission(0x3C); 
+  Wire.write(0x00); // 寫入暫存器位址或指令
+  Wire.endTransmission();
+  
+  // 從 I2C 位址為 0x3C 的設備讀取 2 個位元組
+  Wire.requestFrom(0x3C, 2);    
+  while (Wire.available()) {
+    byte data = Wire.read();
+    // 處理感測器資料...
+  }
+  
+  delay(100);
+}
+
+SPI 語法與暫存器操作
+SPI 通訊支援高達數十 MHz 的傳輸速率。在 Uno Q 的 JDIGITAL 排針上，SPI 功能映射於 PB9（SS / D10）、PB15（MOSI / D11）、PB14（MISO / D12）以及 PB13（SCK / D13）6。
+
+C++
+
+
+#include <SPI.h>
+
+const int SS_PIN = 10; // 對應 PB9
+
+void setup() {
+  pinMode(SS_PIN, OUTPUT);
+  digitalWrite(SS_PIN, HIGH); // 預設拉高，不選擇設備
+  
+  // 初始化 SPI 通訊，可選擇性地透過 SPI.beginTransaction() 設定時脈與資料模式
+  SPI.begin();
+}
+
+void loop() {
+  byte targetAddress = 0x35;
+  byte payload = 0xFA;
+  
+  digitalWrite(SS_PIN, LOW); // 拉低 SS 接腳以選定從屬設備
+  
+  SPI.transfer(targetAddress); // 傳送位址
+  byte response = SPI.transfer(payload); // 傳送資料的同時接收回應
+  
+  digitalWrite(SS_PIN, HIGH); // 釋放從屬設備
+  
+  delay(2000);
+}
+
+進階硬體操作：直接暫存器存取 (Direct Register Access)
+對於極高頻率的接腳切換需求（例如步進馬達的超高速脈衝控制或軟體實作自訂通訊協定），標準的 digitalWrite() 函式因包含大量防呆機制、腳位映射查詢與硬體抽象層（HAL）的函式呼叫，其執行開銷過大，切換時間往往高達數微秒。進階 C++ 開發者可利用指標，直接操作 STM32U585 的 CMSIS 暫存器，將切換速度壓縮至奈秒等級 14。
+此技術要求開發者精確掌握 C++ 的位元運算（Bitwise Operations）與 STM32 的記憶體映射架構。以下範例展示如何繞過 Arduino 核心，直接透過記憶體指標操作 GPIOB 的接腳：
+
+C++
+
+
+#include "main.h"
+
+void setup() {
+  // 1. 啟用時鐘：必須先啟動 GPIOB 匯流排的時鐘，否則對暫存器的寫入將無效
+  RCC->APB2ENR |= RCC_APB2ENR_IOPBEN; 
+  
+  // 2. 配置模式暫存器 (CRL - Configuration Register Low)：
+  // 假設我們要將 PB0 設定為推輓輸出 (Push-Pull Output)，高速模式。
+  // 先使用 &= ~ (NOT AND) 清除舊的位元設定，再使用 |= (OR) 寫入新設定。
+  GPIOB->CRL &= ~(GPIO_CRL_CNF0); // 將 CNF0[1:0] 清零，設定為通用推輓輸出
+  GPIOB->CRL |= GPIO_CRL_MODE0;   // 將 MODE0[1:0] 設為 11，表示高頻速度
+}
+
+void loop() {
+  // 3. 高速切換：直接操作 BSRR (Bit Set/Reset Register) 暫存器
+  // BSRR 是一個 32 位元暫存器，寫入下半部 16 位元可設定接腳為 HIGH，
+  // 寫入上半部 16 位元可將接腳清為 LOW。這保證了操作的原子性 (Atomic)，
+  // 無需在改變狀態前關閉全域中斷。
+  
+  GPIOB->BSRR = GPIO_BSRR_BS0; // 寫入 Set 區域，將 PB0 設為 HIGH
+  // 插入極短的硬體延遲或直接進行下一個指令
+  GPIOB->BSRR = GPIO_BSRR_BR0; // 寫入 Reset 區域，將 PB0 設為 LOW
+}
+
+直接暫存器存取展現了雙核心架構中 MCU 端絕對的時序控制優勢。相對於 MPU 端因為 Linux 排程器導致的抖動（Jitter），這種寫法確保了完全確定性的硬體行為 16。
+第三章：微處理器端 (QRB2210) 之 Python 語法與應用編排
+運行於 QRB2210 上的作業系統為具備上游支援的 Debian Linux。開發者可以透過 apt 安裝各種主流套件（如 Pandas, SciPy 等）7。然而，為簡化開發，Arduino 官方推出了 App Lab 生態系，透過 arduino.app_utils 與 arduino.app_bricks 函式庫，實現了與 MCU 的通訊以及複雜 Linux 服務的模組化管理 18。
+App Lab 與 App_Utils 核心應用程式生命週期
+在 Python 端，應用程式的生命週期由 App.run() 進行自動編排。這有別於傳統的由上而下的腳本執行，它建立了一個事件驅動與多任務的環境。
+
+Python
+
+
+from arduino.app_utils import App
+import time
+
+# 定義一個將被背景排程器持續呼叫的函式，功能類似 C++ 的 loop()
+def loop():
+    # 此區塊會由 MPU 於背景重複執行
+    print("Performing periodic task on Debian...")
+    
+    # 強烈警告：在 Python 的 loop 中必須加入休眠 (sleep)，
+    # 否則這個 while-True 架構的底層迴圈將會佔用 100% 的單核 CPU 資源，
+    # 導致系統過熱或阻礙其他 RPC 通訊與背景服務的執行。
+    time.sleep(1) 
+
+if __name__ == "__main__":
+    # 啟動應用程式。這行指令必須放在檔案的最末端。
+    # 它將接管主執行緒，啟動 Bridge Router 監聽，並開始執行 user_loop。
+    App.run(user_loop=loop)
+
+App Bricks 模組化語法與軟體積木
+Arduino App Lab 提供了一個革命性的概念稱為 "Bricks"（積木）。這些 Bricks 實際上是預先配置好、容器化或高度模組化的 Python 套件，將複雜的 AI 模型推論、Web 伺服器、資料庫儲存與雲端串接功能封裝成單一的 Python 類別 19。
+在使用前，開發者需在 App Lab 介面中加入該 Brick，系統會自動更新 app.yaml 設定檔，隨後即可在 Python 中引用該類別 19。
+WebUI 網頁儀表板積木語法：
+
+Python
+
+
+from arduino.app_utils import App
+from arduino.app_bricks.web_ui import WebUI
+
+# 1. 初始化 WebUI 實體，這將在背景啟動一個監聽 HTTP 與 WebSockets 的輕量級伺服器
+web_ui = WebUI()
+
+def publish_sensor_data():
+    sensor_val = 25.5
+    # 2. 透過 WebSockets 推播資料至前端網頁。
+    # 第一個參數為頻道名稱 (Channel)，第二個參數為資料負載 (Payload)。
+    # 前端 HTML 的 Javascript 只需要監聽此頻道即可即時更新畫面。
+    web_ui.send_message("temperature_update", sensor_val)
+
+if __name__ == "__main__":
+    App.run()
+
+Video Object Detection 物件偵測積木語法：
+
+Python
+
+
+from arduino.app_bricks.video_objectdetection import VideoObjectDetection
+
+# 1. 初始化物件偵測 Brick。這會在底層載入預訓練的 AI 模型，並配置 Adreno GPU 加速。
+detector = VideoObjectDetection()
+
+# detector 實體提供高階 API 以分析影像並回傳結果。
+# 開發者不再需要親自處理 OpenCV 的矩陣轉換或 TensorFlow Lite 的張量配置。
+# 例如可以呼叫 detector 進行推論，其結果可包含 class_name (類別) 與 confidence (信心指數) [22]。
+
+這種 Brick 的導入，大幅消弭了整合底層依賴配置的挑戰，讓開發者能專注於應用程式邏輯 21。
+Python 中的多執行緒與並行處理 (Multithreading)
+由於 QRB2210 是四核心處理器，且 App Lab 的 App.run() 會佔用主執行緒來維持與 MCU 的 RPC 通訊心跳（Heartbeat），若在預設的 loop() 中執行極度耗時的運算（例如龐大影像陣列的迴圈處理或等待網路回應），將導致整個應用程式卡死。因此，Python 的 threading 模組成為必備語法 6。
+
+Python
+
+
+import threading
+import time
+from arduino.app_utils import App
+
+def heavy_computation_task():
+    while True:
+        # 執行會阻塞 (Blocking) 執行緒的複雜工作，例如 AI 影像處理
+        print("Running heavy AI model in background...")
+        time.sleep(0.5)
+
+def loop():
+    # 將繁重的任務分派給一個獨立的背景執行緒 (Daemon Thread)
+    # daemon=True 確保當主程式 (App.run) 終止時，這個執行緒也會跟著被強制結束。
+    worker_thread = threading.Thread(target=heavy_computation_task, daemon=True)
+    worker_thread.start()
+    
+    # 為了避免在 loop 中不斷啟動新的執行緒，這裡通常會配合旗標 (Flag) 或
+    # 直接將 Thread 的啟動移出 loop()，僅在初始化階段執行。
+
+if __name__ == "__main__":
+    App.run() # 這裡只需專注於維持系統運作，不傳遞 user_loop 也可
+
+此種設計模式確保了無論 Linux 端正在執行多麼密集的運算，與微控制器之間的通訊管道始終保持暢通 24。
+第四章：Bridge RPC 跨核心通訊機制與進階語法
+Uno Q 架構最核心的價值與最大的技術門檻，皆在於兩個處理器之間的資料交換。這種交換並非透過傳統的 Serial 字串拼接，而是透過 Arduino_RouterBridge 函式庫 18。
+底層通訊架構：arduino-router 與 MessagePack
+底層的通訊是由一個名為 arduino-router 的 Linux 背景守護行程（Daemon）所管理。它實作了星狀拓撲（Star Topology）的 MessagePack RPC 協定 25。
+● Unix Domain Socket: Python 腳本或其他 Linux 服務（如 C++ 或 Rust 客戶端）透過 /var/run/arduino-router.sock 與路由器溝通 6。
+● 序列通訊介面: 路由器透過 /dev/ttyHS1（Baudrate 115200）與 STM32U585 微控制器進行實體資料傳輸 6。
+● MessagePack: 資料序列化採用 MessagePack，這是一種比 JSON 更緊湊的二進位格式。例如，一個請求封包的結構為 ] 27。這確保了在有限頻寬下傳輸的最大效率。
+若系統發生通訊異常，開發者可以在 Linux 終端機中使用 journalctl -u arduino-router -f 指令來監控路由器的底層活動日誌 6。
+基礎雙向 RPC 語法 API
+C++ 註冊函式供 Python 呼叫 (Bridge.provide)
+為了讓 Python 能夠遠端控制 MCU，必須使用 Bridge.provide() 或 Bridge.provide_safe() 將 MCU 的函式暴露出來 28。
+
+C++
+
+
+#include "Arduino_RouterBridge.h"
+
+// 此函式接收來自 Python 的整數並回傳布林值
+bool set_led_state(int state) {
+  digitalWrite(LED_BUILTIN, state? LOW : HIGH); 
+  return true;
+}
+
+void setup() {
+  pinMode(LED_BUILTIN, OUTPUT);
+  Bridge.begin();
+  Monitor.begin(); // 初始化對 App Lab 主控台的文字流輸出 
+  
+  // 提供 RPC 服務。安全起見，若涉及硬體操作，強烈推薦使用 provide_safe
+  Bridge.provide_safe("set_led_state", set_led_state);
+}
+
+void loop() {
+  // provide_safe 註冊的函式會確保在主迴圈的安全執行緒環境中被喚醒執行，
+  // 避免與正在執行硬體中斷或 I2C 通訊的其他任務發生競爭危害 (Race Condition) 。
+}
+
+Python 呼叫 C++ 函式 (Bridge.call 與 Bridge.notify)
+Python 端可以使用同步等待（Blocking）或射後不理（Fire-and-forget）的方式觸發 MCU 的函式。
+
+Python
+
+
+from arduino.app_utils import App, Bridge
+import time
+
+def loop():
+    # 1. 同步呼叫 (Blocking Call)：Bridge.call()
+    # 程式會暫停執行，直到 MCU 完成 set_led_state 的執行並回傳 true。
+    result = Bridge.call("set_led_state", 1)
+    print(f"MCU replied: {result}")
+    
+    # 2. 非同步通知 (Fire-and-forget)：Bridge.notify()
+    # 程式將指令送出後立即繼續執行，不等待 MCU 的回應。適合用於狀態廣播。
+    Bridge.notify("set_led_state", 0)
+    
+    time.sleep(1)
+
+if __name__ == "__main__":
+    App.run(user_loop=loop)
+
+C++ 呼叫 Python 函式
+方向反轉，由 MCU 主動向 Linux 端請求資料。
+Python 端註冊服務：
+
+Python
+
+
+from arduino.app_utils import App, Bridge
+
+def py_calculate_data(value: int):
+    # 執行只有 Linux 才能快速完成的複雜數學運算或資料庫查詢
+    return value * 3.14
+
+# 將 Python 函式暴露至 RPC 網路中
+Bridge.provide("py_calculate_data", py_calculate_data)
+
+App.run()
+
+C++ 端發出呼叫：
+
+C++
+
+
+#include "Arduino_RouterBridge.h"
+
+void setup() {
+  Bridge.begin();
+  Monitor.begin();
+}
+
+void loop() {
+  float result = 0.0;
+  
+  // 由於 MCU 不能隨意被阻塞，Bridge.call 是非同步的，並回傳一個 RpcCall 物件。
+  // 我們必須使用.result() 方法來等待並取得回傳值 [6, 28]。
+  if (Bridge.call("py_calculate_data", 10).result(result)) {
+      Monitor.print("Python returned: ");
+      Monitor.println(result);
+  } else {
+      Monitor.println("Error calling python method");
+  }
+  delay(1000);
+}
+
+系統效能分析與通訊延遲的關鍵考量
+在實作複雜的跨核心系統時，開發者絕對不能將 Bridge.call 視為普通的函數呼叫。每一次呼叫都伴隨著嚴重的序列化與傳輸開銷。根據硬體社群的系統測試（如使用 MAX31855 感測器進行的來回延遲測試），數據揭示了殘酷的現實：
+RPC 呼叫操作情境最低延遲 (Min)最高延遲 (Max)平均延遲 (Avg)MCU 實際執行時間單一 Float 變數跨核心往返 (Round-trip)16.46 ms18.33 ms17.46 ms幾乎可忽略單一 Int 變數與 Boolean 單向傳遞8.30 ms8.50 ms8.30 ms~4 μs資料呈現基於實測數據，展示了路由器的系統開銷 29。
+上述資料揭示了一個關鍵的架構意涵：RPC 的傳輸開銷佔據了總耗時的 99.9% 29。這意味著如果要在 C++ 的 loop() 中使用逐筆（Point-by-point）的方式發送 100 筆資料，將耗時近 1 秒鐘，這完全摧毀了微控制器的即時特性，並會導致路由器的通訊佇列阻塞。
+複雜資料結構與陣列傳輸的應對策略
+基於上述延遲分析，必須採用批次傳輸（Batching）。然而，由於 MessagePack RPC 嚴格要求型別對應，在 C++ 端傳遞原生陣列或 std::vector 至 Python 時，極易因記憶體對齊或序列化函式庫（如 arx::stdx::vector）的相容性問題而導致編譯錯誤或型別異常（例如報錯 Wrong type parameter in position）29。為解決此技術瓶頸，開發社群衍生出兩種主流的進階策略：
+策略一：JSON 字串序列化 (適用於低頻結構化資料) 在 MCU 端將感測器資料打包為標準的 JSON 格式字串，透過 Bridge.notify 傳輸至 Python 後進行字串解析。此方法耗用 MCU 記憶體較多，但易讀性高，適用於每秒幾次更新的環境監測資料 31。
+Python 端解析語法：
+
+Python
+
+
+import json
+from arduino.app_utils import Bridge
+
+def loop():
+    # 假設 C++ 傳來 '{"temp":25.4, "press":1013.2}'
+    data = Bridge.call("read_bme280") 
+    bme = json.loads(data)            # 解析為 Python 字典
+    print(f"Temperature: {bme['temp']}, Pressure: {bme['press']}")
+
+策略二：二進位結構封裝與 5-bit 字串編碼 (適用於矩陣與高頻資料) 若要將 8x13 的 LED 矩陣狀態（104 個布林值）從 Python 送給 C++，除了封裝成二進位陣列，也有開發者發展出極端的最佳化手段：將布林值每 5 個 bit 壓縮成一個可列印的 ASCII 字元字串（避免 7-bit 或 8-bit 編碼觸發控制字元導致傳輸截斷），然後在 C++ 端解碼 29。針對如 ECG 等高頻採樣訊號，則採用更嚴謹的二進位環狀緩衝區（Binary Frame Batching），將原始位元組封裝後整包提取（Pull）32。
+第五章：進階跨語言應用系統實作範例
+以下將綜合上述所有的 C++、Python 語法與架構考量，展示三個在 Arduino Uno Q 上具備代表性的全端應用範例，以突顯雙核心分工的強大威力。
+範例一：雙向環境監測與 WebUI 儀表板
+此範例展示如何由 MCU 負責時序嚴格的 I2C 讀取，並透過 Python 腳本將資料非同步推送至由 WebUI Brick 搭建的本機儀表板中，這徹底解決了以往單一微控制器在處理 TCP/IP 堆疊時容易產生的記憶體溢位（Out of Memory）或迴圈卡頓問題 33。
+1. MCU 端 (C++ Sketch): 負責硬體通訊
+
+C++
+
+
+#include <Wire.h>
+#include "Arduino_RouterBridge.h"
+// 假設使用 BME680 相關感測器函式庫
+#include <Adafruit_BME680.h>
+
+Adafruit_BME680 bme; 
+
+void setup() {
+  Wire.begin();
+  bme.begin();
+  Bridge.begin();
+  Monitor.begin();
+}
+
+void loop() {
+  if (bme.performReading()) {
+    // 取得資料後，使用 notify 進行射後不理推播。
+    // 這不會阻塞 C++ 的主迴圈，確保後續感測器讀取的時序精準度。
+    Bridge.notify("temperature_callback", bme.temperature);
+  }
+  delay(2000); 
+}
+
+2. MPU 端 (Python Script): 負責資料路由與前端更新
+
+Python
+
+
+from arduino.app_utils import App, Bridge
+from arduino.app_bricks.web_ui import WebUI
+
+web_ui = WebUI() # 初始化伺服器
+
+# 定義接收 MCU 溫度的回呼函式
+def temperature_callback(temperature: float):
+    print(f"Current Temp: {temperature} C")
+    # 將資料透過 WebSockets 推送至 HTML 前端的頻道
+    web_ui.send_message("temperature_update", temperature)
+
+# 向 RPC Router 註冊該回呼函式，使 C++ 的 notify 可以正確路由至此
+Bridge.provide("temperature_callback", temperature_callback)
+
+if __name__ == "__main__":
+    App.run()
+
+範例二：高頻醫療級 ECG 生理訊號擷取與數位濾波
+本範例完美示範了如何克服 RPC 的 8.3ms 傳輸延遲瓶頸。當需要以 200 Hz 的頻率從類比接腳（A0）讀取心電圖（ECG）訊號時，若逐筆傳送，系統將立即崩潰 32。
+在此應用中，STM32U585 內部利用精確的硬體計時器與環狀緩衝區（Ring Buffer），連續讀取數十個取樣點。隨後，C++ 將這些樣本連同絕對時間戳記（Start timestamp）與相對時間差（Timestamp deltas），封裝為一個緊湊的二進位資料框（Binary Frame），並附帶 CRC 校驗碼以確保資料完整性，再將其暴露於 RPC 介面 ecg_get_frame() 32。
+QRB2210 端運行 Python，扮演後端數位訊號處理（DSP）的強大引擎。Python 腳本主動向 MCU 進行 RPC 呼叫獲取這批二進位資料塊，隨後利用 Linux 端豐富的科學運算庫（如 scipy.signal），執行 MCU 難以負荷的浮點運算：套用陷波濾波器（Notch filter）消除 60Hz 的電源市電干擾，使用低通濾波器去除肌電雜訊，並進行 R-peak 峰值偵測演算法以計算即時心率（BPM） 32。處理完畢後，透過 WebSocket 串流至前端瀏覽器，使用 WebGL 進行高幀率繪製。整個系統運行於邊緣端，無須依賴雲端運算，確保了醫療資料的隱私與低延遲 32。
+範例三：邊緣 AI 視覺與硬體致動連動 (物件偵測)
+Uno Q 的 QRB2210 具備硬體級的 Adreno GPU 與雙 ISP（影像訊號處理器）加速能力，能夠流暢執行每秒 30 幀的高解析度機器學習推論 1。此範例說明如何結合 Python 的電腦視覺 Brick 與 MCU 的即時 PWM 硬體反應。
+Python 端：影像擷取、推論與決策下達
+
+Python
+
+
+from arduino.app_utils import App, Bridge
+from arduino.app_bricks.video_objectdetection import VideoObjectDetection
+import threading
+import time
+
+detector = VideoObjectDetection()
+
+def ai_vision_task():
+    while True:
+        # 取得推論結果。這是一個高度耗用 CPU/GPU 的阻塞型操作
+        results = detector.get_inferences() 
+        
+        person_detected = False
+        for obj in results:
+            # 解析物件類別與信心指數
+            if obj.class_name == "person" and obj.confidence > 0.7:
+                person_detected = True
+                break
+        
+        # 決策完成後，將推論結論 (布林值) 通知 MCU。
+        # 這裡僅傳遞極微小的控制訊號，將頻寬耗用降至最低。
+        Bridge.notify("trigger_alarm", person_detected)
+        time.sleep(0.1) 
+
+def loop():
+    # 必須將阻塞型的電腦視覺任務放置於獨立的背景執行緒中，
+    # 確保主執行緒能持續處理 RPC 通訊。
+    vision_thread = threading.Thread(target=ai_vision_task, daemon=True)
+    vision_thread.start()
+
+if __name__ == "__main__":
+    App.run(user_loop=loop)
+
+C++ 端：根據高階 AI 決策進行底層硬體控制
+
+C++
+
+
+#include "Arduino_RouterBridge.h"
+#include <Servo.h>
+
+Servo gateServo;
+const int buzzerPin = 9;
+
+// 接收來自 Python 邊緣 AI 的推論結論
+void trigger_alarm(bool isPerson) {
+  if (isPerson) {
+    digitalWrite(LED_BUILTIN, LOW); // 亮燈警示 (Active Low)
+    tone(buzzerPin, 1000, 200);     // 啟動蜂鳴器硬體計時器
+    gateServo.write(90);            // 輸出 PWM 訊號開啟閘門
+  } else {
+    digitalWrite(LED_BUILTIN, HIGH);
+    gateServo.write(0);
+  }
+}
+
+void setup() {
+  pinMode(LED_BUILTIN, OUTPUT);
+  gateServo.attach(10);
+  
+  Bridge.begin();
+  // 必須確保硬體操作於安全執行緒 (Main Loop 脈絡) 內執行，
+  // 否則非同步的 RPC 喚醒可能會干擾 Servo 函式庫底層的中斷計時器。
+  Bridge.provide_safe("trigger_alarm", trigger_alarm);
+}
+
+void loop() {
+  // MCU 主迴圈維持完全清爽，專注於維持 Servo 的精準 PWM 訊號與其他可能的感測任務
+}
+
+在這個範例中，繁重的視訊解碼、張量（Tensor）運算全數由 Linux MPU 承擔；一旦獲得語意級的決策，僅需傳遞位元組級別的訊號給 STM32 MCU。STM32 則負責生成絕對精準的硬體 PWM 訊號以控制伺服馬達，完美詮釋了異質多核心運算平台的系統設計哲學 3。
+第六章：總結與系統架構設計最佳實務
+Arduino Uno Q 的架構設計不僅僅是一次硬體規格的提升，更是軟體工程思維在嵌入式系統上的一次全面革新。它打破了過去創客與專業工程師必須在「高運算力但缺乏即時性的樹莓派」與「即時反應但缺乏高階運算力的微控制器」之間二選一的困境 23。
+從語法與實作層面觀之，開發者必須跨越傳統單一控制器的線性思維，擁抱分散式架構與非同步通訊的設計模式。在 C++ 端，應善用 Zephyr RTOS 的特性，利用 Bridge.provide_safe 保障跨執行緒呼叫的安全，並在應對極端時序要求的任務中，果斷拋棄 HAL 函式庫，改採直接暫存器存取來突破速度限制。在 Python 端，則需深刻體認到主執行緒的守護責任，將耗時運算委託給多執行緒，並靈活套用 App Bricks 生態系中的 WebUI 與 AI 積木模組以大幅縮短專案的開發週期。
+最重要的是，系統架構師必須時刻將 MessagePack RPC 的通訊延遲與序列化開銷納入系統拓撲設計的考量中。雙腦之間不應傳遞未經處理的龐大原始資料（Raw Data），而應傳遞經過 MCU 預處理的批次封包或 MPU 推論後的語意決策。唯有透過嚴謹地掌握這套雙向通訊介面與多執行緒並行處理機制，開發者方能徹底釋放 Arduino Uno Q 作為次世代邊緣人工智慧與物聯網樞紐的強大潛能。
+引用的著作
+1. UNO Q | Arduino Documentation, 檢索日期：4月 26, 2026， https://docs.arduino.cc/hardware/uno-q
+2. Discover the New Arduino UNO Q: The All-In One Toolbox, 檢索日期：4月 26, 2026， https://www.arduino.cc/product-uno-q
+3. Arduino UNO Q powered by the Qualcomm Dragonwing, 檢索日期：4月 26, 2026， https://www.qualcomm.com/developer/hardware/arduino-uno-q
+4. Debian Linux Basics for UNO Q - Arduino Documentation, 檢索日期：4月 26, 2026， https://docs.arduino.cc/tutorials/uno-q/debian-guide
+5. Arduino? UNO? Q 2GB, 檢索日期：4月 26, 2026， https://store-usa.arduino.cc/products/uno-q
+6. UNO Q User Manual | Arduino Documentation, 檢索日期：4月 26, 2026， https://docs.arduino.cc/tutorials/uno-q/user-manual/
+7. Trying Python+Arduino with Arduino UNO Q - Hackster.io, 檢索日期：4月 26, 2026， https://www.hackster.io/vsupacha/trying-python-arduino-with-arduino-uno-q-2fa4df
+8. UNO Q Power Specifications - Arduino Documentation, 檢索日期：4月 26, 2026， https://docs.arduino.cc/tutorials/uno-q/power-specification/
+9. JCTL CIPO/COPI have previously been referred to as MISO/MOSI JSPI and JDIGITAL SPI share the SPI2 MCU peripheral (Can not be use, 檢索日期：4月 26, 2026， https://docs.arduino.cc/resources/pinouts/ABX00162-full-pinout.pdf
+10. Let us learn Arduino UNO Q step-by-step, 檢索日期：4月 26, 2026， https://forum.arduino.cc/t/let-us-learn-arduino-uno-q-step-by-step/1426536
+11. AttachInterrupt() help.. - Syntax & Programs - Arduino Forum, 檢索日期：4月 26, 2026， https://forum.arduino.cc/t/attachinterrupt-help/44280
+12. Wire | Arduino Documentation, 檢索日期：4月 26, 2026， https://www.arduino.cc/en/Reference/wire
+13. Arduino Uno Q SBC Pin Diagram & Board Layout Explained - Robocraze, 檢索日期：4月 26, 2026， https://robocraze.com/blogs/post/arduino-uno-q-sbc-pin-diagram-board-layout-explained
+14. Directly Access ANY STM32 Register Using This Simple Method - YouTube, 檢索日期：4月 26, 2026， https://www.youtube.com/watch?v=6-ldNepp9Cs
+15. GPIO mode register - c++ - Stack Overflow, 檢索日期：4月 26, 2026， https://stackoverflow.com/questions/27158211/gpio-mode-register
+16. STM32 GPIO Registers (Direct Register Access) Fast Pin Control - DeepBlueMbedded, 檢索日期：4月 26, 2026， https://deepbluembedded.com/stm32-gpio-registers-direct-access-fast-pin-control/
+17. Jetson Nano Fast GPIO C++ Example with Direct Register Access, 檢索日期：4月 26, 2026， https://forums.developer.nvidia.com/t/jetson-nano-fast-gpio-c-example-with-direct-register-access/79692
+18. Getting Started with the Bridge | Arduino Documentation, 檢索日期：4月 26, 2026， https://docs.arduino.cc/software/app-lab/bridge/get-started-with-bridge
+19. Use Bricks in Arduino App Lab, 檢索日期：4月 26, 2026， https://docs.arduino.cc/software/app-lab/bricks/use-bricks/
+20. Arduino App Lab - Build Your First App | DroneBot Workshop, 檢索日期：4月 26, 2026， https://dronebotworkshop.com/arduino-app-lab/
+21. App Lab Custom Bricks and Applications! : r/arduino - Reddit, 檢索日期：4月 26, 2026， https://www.reddit.com/r/arduino/comments/1pz3i6u/app_lab_custom_bricks_and_applications/
+22. Object Detection - arduino/app-bricks-examples - GitHub, 檢索日期：4月 26, 2026， https://github.com/arduino/app-bricks-examples/blob/main/examples/object-detection/README.md
+23. Running ML/AI on Arduino UNO Q - Hackster.io, 檢索日期：4月 26, 2026， https://www.hackster.io/vsupacha/running-ml-ai-on-arduino-uno-q-59ff07
+24. Python threading and Arduino communication - Stack Overflow, 檢索日期：4月 26, 2026， https://stackoverflow.com/questions/40340296/python-threading-and-arduino-communication
+25. Bridge API Reference | Arduino Documentation, 檢索日期：4月 26, 2026， https://docs.arduino.cc/software/app-lab/bridge/bridge-api/
+26. Working with Arduino Router RPC, 檢索日期：4月 26, 2026， https://docs.arduino.cc/tutorials/uno-q/routerbridge-multilanguage
+27. GitHub - arduino/arduino-router: The UNO Q router/bridge communication service (Python / Sketch), 檢索日期：4月 26, 2026， https://github.com/arduino/arduino-router
+28. GitHub - arduino-libraries/Arduino_RouterBridge: A wrapper of Arduino_RPClite, specific for the Arduino UNO Q. It provides a better UX and API for sketches., 檢索日期：4月 26, 2026， https://github.com/bcmi-labs/Arduino_RouterBridge
+29. UNO Q Bridge Calls Help - Arduino Forum, 檢索日期：4月 26, 2026， https://forum.arduino.cc/t/uno-q-bridge-calls-help/1415772
+30. Arduino UNO Q and Bridge Tool: any samples and documentation? - #36 by Merlin513, 檢索日期：4月 26, 2026， https://forum.arduino.cc/t/arduino-uno-q-and-bridge-tool-any-samples-and-documentation/1410551/36
+31. Arduino UNO-Q example: reading GNSS NMEA data and displaying it in a web dashboard, 檢索日期：4月 26, 2026， https://forum.arduino.cc/t/arduino-uno-q-example-reading-gnss-nmea-data-and-displaying-it-in-a-web-dashboard/1433936?page=4
+32. DIY-ECG on Arduino UNO Q, 檢索日期：4月 26, 2026， https://projecthub.arduino.cc/jens-bongartz/diy-ecg-on-arduino-uno-q-7b3e5a
+33. Can I run SPI and I2C simultaneously on Uno? - Arduino Forum, 檢索日期：4月 26, 2026， https://forum.arduino.cc/t/can-i-run-spi-and-i2c-simultaneously-on-uno/645765
+34. Arduino? UNO Q - Local Weather Station, 檢索日期：4月 26, 2026， https://projecthub.arduino.cc/Arduino_Genuino/arduino-uno-q-local-weather-station-b771ee
+35. UNO-Q - WebUI - HTML Help - Arduino Forum, 檢索日期：4月 26, 2026， https://forum.arduino.cc/t/uno-q-webui-html-help/1424668
+36. Project presentation: Real-time ECG data acquisition and visualization on Arduino UNO Q, 檢索日期：4月 26, 2026， https://forum.arduino.cc/t/project-presentation-real-time-ecg-data-acquisition-and-visualization-on-arduino-uno-q/1428063
+37. Project presentation: Real-time ECG data acquisition and visualization on Arduino UNO Q, 檢索日期：4月 26, 2026， https://forum.arduino.cc/t/project-presentation-real-time-ecg-data-acquisition-and-visualization-on-arduino-uno-q/1428063/7
+38. 5 Advanced Arduino Uno Q Projects for IoT & Robotics - Robocraze, 檢索日期：4月 26, 2026， https://robocraze.com/blogs/post/5-advanced-arduino-uno-q-projects-for-iot-robotics
+39. Multi-Sensor Health Monitor with Arduino UNO Q - Hackster.io, 檢索日期：4月 26, 2026， https://www.hackster.io/jarain78/multi-sensor-health-monitor-with-arduino-uno-q-7b971e
+40. EASIEST! Way to Get Started with Arduino UNO Q Board (AI, Vision & Voice) - YouTube, 檢索日期：4月 26, 2026， https://www.youtube.com/watch?v=7tod6GApDvE

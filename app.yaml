@@ -1,0 +1,12 @@
+name: smart_trash_bin-2
+description: Smart trash bin with custom object detection
+ports: []
+bricks:
+- arduino:video_object_detection:
+    model: ei-model-smart-trash-1
+    variables:
+      CUSTOM_MODEL_PATH: /home/arduino/.arduino-bricks/models/custom-ei/ei-model-smart-trash-1
+      EI_V_OBJ_DETECTION_MODEL: /home/arduino/.arduino-bricks/models/custom-ei/ei-model-smart-trash-1/model.eim
+- arduino:web_ui: {}
+- arduino:dbstorage_sqlstore: {}
+icon: 🗑️

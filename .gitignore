@@ -1,0 +1,18 @@
+# ignore app cache folder
+.cache/
+
+# local tool artifacts
+.playwright-mcp/
+.omo/
+
+# runtime SQLite (db.start() recreates an EMPTY table only - history records are NOT recoverable; keep local + back up manually)
+data/recycling.db
+data/recycling.db-shm
+data/recycling.db-wal
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# GitHub publish staging (must not be tracked by main repo)
+output/github-publish/public-repo/

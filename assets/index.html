@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>智慧分類控制台</title>
+    <!-- Fonts: Noto Sans TC for UI, Fira Code for data if desired, or just tabular-nums -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=5">
+    <script src="socket.io.min.js"></script>
+    <script>if(typeof io==='undefined')document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.min.js"><\/script>')</script>
+    <!-- html2canvas for image export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- Chart.js for line chart -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="backend-theme">
+    <!-- Top Navigation -->
+    <nav class="navbar">
+        <div class="nav-left">
+            <div class="logo">
+                <img src="images/logo.png" alt="智慧分類 Logo" class="logo-img">
+            </div>
+            <span class="nav-title">智慧分類</span>
+            <div class="nav-tabs">
+                <button class="tab-btn active" onclick="switchTopLevel('report')" id="tab-btn-report">專案報告</button>
+                <button class="tab-btn" onclick="switchTopLevel('console')" id="tab-btn-console">控制台</button>
+            </div>
+            <div class="nav-tabs nav-tabs-sub" id="sub-tabs" style="display:none;">
+                <button class="tab-btn active" onclick="switchTab('overview')" id="tab-btn-overview">總覽</button>
+                <button class="tab-btn" onclick="switchTab('history')" id="tab-btn-history">歷史記錄</button>
+                <button class="tab-btn" onclick="switchTab('settings')" id="tab-btn-settings">系統控制</button>
+            </div>
+        </div>
+        <div class="nav-right">
+            <div class="status-indicator" id="status-indicator">
+                <div class="status-dot" id="dot"></div>
+                <span id="stat">連線中</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container">
+        <!-- ========================================== -->
+        <!-- TOP LEVEL: REPORT PAGE                     -->
+        <!-- ========================================== -->
+        <div id="view-report" class="view-content report-view">
+            <section class="report-section" id="report-hero">
+                <h2 class="report-section-title"></h2>
+                <div class="report-section-body">
+                    <div class="report-hero">
+                        <div class="report-hero-bg">
+                            <img src="images/hero-bg.jpg" loading="lazy" alt="專題背景" style="width:100%;height:100%;object-fit:cover;display:block;">
+                        </div>
+                        <div style="position:absolute;top:0;left:0;width:100%;height:100%;background:linear-gradient(rgba(0,0,0,0.5),rgba(0,0,0,0.7));z-index:0;"></div>
+                        <h1 class="report-hero-title" style="color:#fff;">自動分類垃圾桶</h1>
+                        <p style="position:relative;z-index:1;color:rgba(255,255,255,0.9);font-size:14px;max-width:600px;text-align:center;margin-top:8px;line-height:1.5;">結合 YOLO 影像辨識與 Arduino Uno Q 開發板，實現校園智慧垃圾自動分類系統</p>
+                        <div style="position:relative;z-index:1;display:flex;gap:12px;margin-top:16px;flex-wrap:wrap;justify-content:center;">
+                            <span style="background:rgba(255,255,255,0.15);color:#fff;padding:4px 12px;border-radius:4px;font-size:12px;border:1px solid rgba(255,255,255,0.2);">國立華南高商 資料處理科 | 114學年度專題實作</span>
+                            <span style="background:var(--success);color:#fff;padding:4px 12px;border-radius:4px;font-size:12px;">SDGs 12 責任消費與生產</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <section class="report-section" id="report-problem">
+                <h2 class="report-section-title">研究背景</h2>
+                <div class="report-section-body">
+                    <p>校園日常觀察到許多同學分不清楚回收類別，將塑膠材質物品誤放至紙類回收桶，導致負責回收的同學必須進行耗時費力的二次人工分揀。</p>
+                    <p>有鑑於傳統宣導方式成效有限，本小組決定開發具備即時辨識能力的智慧垃圾桶，透過科技輔助從源頭解決分類問題。</p>
+                </div>
+            </section>
+            <section class="report-section" id="report-solution">
+                <h2 class="report-section-title">解決方案</h2>
+                <div class="report-section-body">
+                    <p>本系統結合 YOLO 影像辨識技術與 Arduino Uno Q 開發板，在垃圾投入時自動判斷種類並驅動舵機進行分類。</p>
+                    <p>透過網頁儀表板即時監控分類統計，並將數據記錄於本地端，方便後續分析與管理。</p>
+                    <div style="display:flex;gap:16px;margin-top:24px;flex-wrap:wrap;">
+                        <div class="report-card" style="flex:1;min-width:200px;">
+                            <div class="report-card-title">YOLO 即時影像辨識</div>
+                            <div class="report-card-body">使用 AI 模型自動判斷投入物為塑膠瓶或紙杯，於偵測後立即觸發分類流程。</div>
+                        </div>
+                        <div class="report-card" style="flex:1;min-width:200px;">
+                            <div class="report-card-title">Arduino 自動舵機分類</div>
+                            <div class="report-card-body">透過舵機控制分流平台角度，30° 投入塑膠桶、150° 投入紙杯桶，全自動無須人工介入。</div>
+                        </div>
+                        <div class="report-card" style="flex:1;min-width:200px;">
+                            <div class="report-card-title">網頁儀表板監控</div>
+                            <div class="report-card-body">即時顯示分類統計、歷史記錄與活動熱力圖，資料儲存於本地端方便管理與分析。</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <section class="report-section" id="report-architecture">
+                <h2 class="report-section-title">系統架構</h2>
+                <div class="report-section-body">
+                    <div class="report-architecture-diagram">
+                        <div class="report-arch-box">
+                            <div class="report-arch-title">MCU (STM32U585)</div>
+                            <div class="report-arch-detail">sketch.ino</div>
+                            <div class="report-arch-detail">Zephyr RTOS</div>
+                        </div>
+                        <div class="report-arch-connector">
+                            <div class="report-arch-arrow"></div>
+                            <div class="report-arch-label">Bridge RPC (MessagePack)</div>
+                            <div class="report-arch-arrow"></div>
+                        </div>
+                        <div class="report-arch-box">
+                            <div class="report-arch-title">MPU (QRB2210)</div>
+                            <div class="report-arch-detail">main.py</div>
+                            <div class="report-arch-detail">Debian Linux</div>
+                        </div>
+                        <div class="report-arch-connector">
+                            <div class="report-arch-arrow"></div>
+                            <div class="report-arch-label">Socket.IO</div>
+                            <div class="report-arch-arrow"></div>
+                        </div>
+                        <div class="report-arch-box">
+                            <div class="report-arch-title">SQLite 資料庫</div>
+                            <div class="report-arch-detail">db.py / dbstorage_sqlstore</div>
+                            <div class="report-arch-detail">回收記錄與統計查詢</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <section class="report-section" id="report-hardware">
+                <h2 class="report-section-title">硬體規格</h2>
+                <div class="report-section-body">
+                    <div class="report-card" style="flex:0 0 180px;align-self:flex-start;">
+                        <img src="images/hardware.jpg" alt="硬體材料與開發板" loading="lazy" style="width:100%;border-radius:6px;">
+                    </div>
+                    <div style="flex:1;min-width:200px;">
+                        <p>系統核心為 <strong>Arduino Uno Q</strong>，搭載 <strong>STM32U585 MCU</strong> 執行即時舵機控制，與 <strong>Qualcomm QRB2210 MPU</strong> 跑 Debian Linux 負責 AI 推論，兩者透過 Bridge RPC 協同運作。</p>
+                        <p>分流平台使用 <strong>MG996R 舵機</strong>，訊號線接 pin D11，支援角度 30°（塑膠左傾）、90°（水平待機）、150°（紙杯右傾）。USB 攝影機負責取像，影像資料由 QRB2210 進行 AI 推理，不占用 MCU 資源。</p>
+                    </div>
+                </div>
+            </section>
+            <section class="report-section" id="report-ai">
+                <h2 class="report-section-title">AI 影像辨識</h2>
+                <div class="report-section-body">
+                    <!-- Complete source code sourced from sketch/sketch.ino and python/main.py -->
+                    <div class="report-code-tabs">
+                        <button class="report-tab-btn active" data-tab="cpp" onclick="reportSwitchCodeTab('cpp')">C++ 韌體完整程式</button>
+                        <button class="report-tab-btn" data-tab="python" onclick="reportSwitchCodeTab('python')">Python 中台完整程式</button>
+                    </div>
+                    <div class="report-code-note">完整顯示 <code>sketch/sketch.ino</code> 與 <code>python/main.py</code>。滑鼠移到有淡藍底線的重點行可查看中文說明。</div>
+                    <div id="report-code-cpp" class="report-code-block report-code-block-full">
+<pre><code><span class="report-code-line">/*</span>
+<span class="report-code-line"> * 智慧垃圾分類回收桶 - Arduino 韌體</span>
+<span class="report-code-line"> * Smart Recycling Trash Bin - Arduino Firmware</span>
+<span class="report-code-line"> * </span>
+<span class="report-code-line"> * 硬體配置：</span>
+<span class="report-code-line"> *   - 舵機: MG996R (手動 PWM 脈衝控制，不需 Servo.h)</span>
+<span class="report-code-line"> *   - 訊號線: D11 (PWM 腳位)</span>
+<span class="report-code-line"> *   - 電源: MG996R 紅線接外部 5V~6V 電源，棕線接 GND</span>
+<span class="report-code-line"> *   - 預設角度 90° = 平台水平穩定</span>
+<span class="report-code-line"> *   - 塑膠模式 → 30° (向左傾倒)</span>
+<span class="report-code-line"> *   - 紙杯模式 → 150° (向右傾倒)</span>
+<span class="report-code-line"> *   - 傾倒後自動回正至 90°</span>
+<span class="report-code-line"> * </span>
+<span class="report-code-line"> * PWM 原理：</span>
+<span class="report-code-line"> *   標準舵機需要 50Hz (20ms 週期) 的 PWM 訊號</span>
+<span class="report-code-line"> *   脈衝寬度 500µs = 0°, 1500µs = 90°, 2500µs = 180°</span>
+<span class="report-code-line"> *   每次 loop() 發送一個脈衝，delayMicroseconds 最多阻塞 2.5ms，</span>
+<span class="report-code-line"> *   不影響 Bridge.update() 正常運作</span>
+<span class="report-code-line"> */</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">// SPDX-FileCopyrightText: Copyright (C) ARDUINO SRL (http://www.arduino.cc)</span>
+<span class="report-code-line">// SPDX-License-Identifier: MPL-2.0</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">#include &lt;MsgPack.h&gt;</span>
+<span class="report-code-line">#include &lt;Arduino_RPClite.h&gt; </span>
+<span class="report-code-line">#include &quot;Arduino_RouterBridge.h&quot;</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">// ============================================================</span>
+<span class="report-code-line">// === 硬體配置 ===</span>
+<span class="report-code-line">// ============================================================</span>
+<span class="report-code-line">// MG996R 接線：</span>
+<span class="report-code-line">//   橘色 (訊號) → D11</span>
+<span class="report-code-line">//   紅色 (電源) → 外部 5V~6V 電源正極 (不要用板上 5V，電流不夠)</span>
+<span class="report-code-line">//   棕色 (GND)  → GND (Arduino GND 與外部電源 GND 要共地)</span>
+<span class="report-code-line">// ============================================================</span>
+<span class="report-code-line" data-tooltip="SERVO_PIN 使用 D11，符合 Uno Q / Zephyr 建議的 D 前綴腳位寫法。">const int SERVO_PIN = D11;</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">// === 舵機角度常數 ===</span>
+<span class="report-code-line" data-tooltip="ANGLE_NEUTRAL 是水平待機角度，分類完成後平台會回到 90°。">const int ANGLE_NEUTRAL = 90;   // 水平穩定 (待機)</span>
+<span class="report-code-line" data-tooltip="ANGLE_PLASTIC 是塑膠分類方向，舵機轉到 30° 讓平台左傾。">const int ANGLE_PLASTIC = 30;   // 塑膠方向 (左傾)</span>
+<span class="report-code-line" data-tooltip="ANGLE_PAPER 是紙杯分類方向，舵機轉到 150° 讓平台右傾。">const int ANGLE_PAPER   = 150;  // 紙杯方向 (右傾)</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">// === 手動 PWM 控制變數 ===</span>
+<span class="report-code-line">int currentAngle = 90;                // 目前目標角度</span>
+<span class="report-code-line">unsigned long lastPulseTime = 0;      // 上次脈衝時間 (micros)</span>
+<span class="report-code-line" data-tooltip="PULSE_PERIOD 設為 20000µs，代表標準舵機 50Hz PWM 週期。">const unsigned long PULSE_PERIOD = 20000;  // 20ms = 50Hz</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">// === 分流狀態機 ===</span>
+<span class="report-code-line" data-tooltip="SortState 定義分流平台的三個狀態：待機、傾倒、回正。">enum SortState {</span>
+<span class="report-code-line">    STATE_IDLE,       // 待機 (90° 水平)</span>
+<span class="report-code-line">    STATE_TILTING,    // 正在傾倒</span>
+<span class="report-code-line">    STATE_RETURNING   // 回正中</span>
+<span class="report-code-line">};</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">volatile SortState currentState = STATE_IDLE;</span>
+<span class="report-code-line">unsigned long tiltStartTime = 0;</span>
+<span class="report-code-line" data-tooltip="TILT_HOLD_MS 控制傾倒維持時間，讓垃圾有足夠時間滑入桶內。">const unsigned long TILT_HOLD_MS = 1500;     // 傾倒維持 1.5 秒，加快回正節奏</span>
+<span class="report-code-line" data-tooltip="RETURN_TIME_MS 是回正等待時間，避免尚未回正就接受下一次分類。">const unsigned long RETURN_TIME_MS = 500;    // 回正等待時間 (ms)</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">// === 冷卻時間防重複 ===</span>
+<span class="report-code-line">// Bridge RPC 底層可能有超時重試，導致同一條 sort 指令被送達兩次。</span>
+<span class="report-code-line">// 此計時器獨立於狀態機，確保無論狀態為何，5 秒內不接受新的 sort 命令。</span>
+<span class="report-code-line" data-tooltip="lastSortTime 與 lastSortSeq 用來防止 Bridge RPC 超時重試導致的重複分類動作。">unsigned long lastSortTime = 0;</span>
+<span class="report-code-line" data-tooltip="SORT_COOLDOWN_MS 確保 5 秒內不接受重複 sort 指令，防止 RPC 超時重試導致重複動作。">const unsigned long SORT_COOLDOWN_MS = 5000; // 5 秒冷卻（大於任何可能的 RPC 超時）</span>
+<span class="report-code-line">int lastSortSeq = 0; // 最後一次接受的序列號</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">// ============================================================</span>
+<span class="report-code-line">// === 手動舵機 PWM 控制函式 ===</span>
+<span class="report-code-line">// ============================================================</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">/**</span>
+<span class="report-code-line"> * 設定舵機目標角度 (0~180)</span>
+<span class="report-code-line"> */</span>
+<span class="report-code-line" data-tooltip="servoWrite() 只更新目標角度，真正輸出 PWM 由 servoRefresh() 負責。">void servoWrite(int angle) {</span>
+<span class="report-code-line">    currentAngle = constrain(angle, 0, 180);</span>
+<span class="report-code-line">}</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">/**</span>
+<span class="report-code-line"> * 在 loop() 中呼叫，定期發送 PWM 脈衝維持舵機位置</span>
+<span class="report-code-line"> * 每 20ms 發送一次脈衝，脈衝寬度對應角度</span>
+<span class="report-code-line"> * 阻塞時間最多 2.5ms，不影響 Bridge 通訊</span>
+<span class="report-code-line"> */</span>
+<span class="report-code-line" data-tooltip="servoRefresh() 每 20ms 送一次 PWM 脈衝，維持 MG996R 舵機位置。">void servoRefresh() {</span>
+<span class="report-code-line">    unsigned long now = micros();</span>
+<span class="report-code-line" data-tooltip="PULSE_PERIOD 設為 20000µs，代表標準舵機 50Hz PWM 週期。">    if (now - lastPulseTime &lt; PULSE_PERIOD) return;</span>
+<span class="report-code-line">    lastPulseTime = now;</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">    // 角度轉脈衝寬度: 0° → 500µs, 90° → 1500µs, 180° → 2500µs</span>
+<span class="report-code-line">    int pulseWidth = map(currentAngle, 0, 180, 500, 2500);</span>
+<span class="report-code-line"></span>
+<span class="report-code-line" data-tooltip="將 D11 拉高開始舵機脈衝。">    digitalWrite(SERVO_PIN, HIGH);</span>
+<span class="report-code-line">    delayMicroseconds(pulseWidth);</span>
+<span class="report-code-line" data-tooltip="將 D11 拉低結束本次 PWM 脈衝。">    digitalWrite(SERVO_PIN, LOW);</span>
+<span class="report-code-line">}</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">// ============================================================</span>
+<span class="report-code-line"></span>
+<span class="report-code-line" data-tooltip="setup() 只在開機時執行一次，負責初始化硬體與 Bridge RPC。">void setup() {</span>
+<span class="report-code-line">    Serial.begin(9600);</span>
+<span class="report-code-line">    </span>
+<span class="report-code-line">    // 初始化舵機腳位</span>
+<span class="report-code-line">    pinMode(SERVO_PIN, OUTPUT);</span>
+<span class="report-code-line" data-tooltip="將 D11 拉低結束本次 PWM 脈衝。">    digitalWrite(SERVO_PIN, LOW);</span>
+<span class="report-code-line">    delay(100);</span>
+<span class="report-code-line">    </span>
+<span class="report-code-line">    // 舵機歸位到水平位置</span>
+<span class="report-code-line" data-tooltip="ANGLE_NEUTRAL 是水平待機角度，分類完成後平台會回到 90°。">    servoWrite(ANGLE_NEUTRAL);</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">    // Bridge 註冊</span>
+<span class="report-code-line" data-tooltip="Bridge.begin() 啟動 MCU 與 Python 中台之間的 RPC 通道。">    Bridge.begin();</span>
+<span class="report-code-line" data-tooltip="Bridge.provide() 註冊回調供 Python 呼叫。">    Bridge.provide(&quot;sort_plastic&quot;, sort_plastic);</span>
+<span class="report-code-line" data-tooltip="Bridge.provide() 註冊回調供 Python 呼叫。">    Bridge.provide(&quot;sort_paper&quot;, sort_paper);</span>
+<span class="report-code-line" data-tooltip="Bridge.provide() 註冊回調供 Python 呼叫。">    Bridge.provide(&quot;reset_platform&quot;, reset_platform);</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">    Serial.println(&quot;Smart Trash Bin Ready (Direct PWM Mode - D11)&quot;);</span>
+<span class="report-code-line">}</span>
+<span class="report-code-line"></span>
+<span class="report-code-line" data-tooltip="loop() 是 MCU 主循環，必須快速反覆執行以維持 Bridge 與 PWM。">void loop() {</span>
+<span class="report-code-line">    Bridge.update();</span>
+<span class="report-code-line">    servoRefresh();  // 持續發送 PWM 脈衝維持舵機位置</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">    unsigned long now = millis();</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">    switch (currentState) {</span>
+<span class="report-code-line" data-tooltip="待機狀態，平台保持水平。">        case STATE_IDLE:</span>
+<span class="report-code-line">            // 待機狀態，平台保持水平</span>
+<span class="report-code-line">            break;</span>
+<span class="report-code-line"></span>
+<span class="report-code-line" data-tooltip="傾倒狀態，維持傾斜角度直到 TILT_HOLD_MS 時間到。">        case STATE_TILTING:</span>
+<span class="report-code-line">            // 傾倒中 → 維持傾斜角度一段時間</span>
+<span class="report-code-line" data-tooltip="TILT_HOLD_MS 控制傾倒維持時間，讓垃圾有足夠時間滑入桶內。">            if (now - tiltStartTime &gt;= TILT_HOLD_MS) {</span>
+<span class="report-code-line">                // 時間到，回正</span>
+<span class="report-code-line" data-tooltip="ANGLE_NEUTRAL 是水平待機角度，分類完成後平台會回到 90°。">                servoWrite(ANGLE_NEUTRAL);</span>
+<span class="report-code-line">                currentState = STATE_RETURNING;</span>
+<span class="report-code-line">                tiltStartTime = now;</span>
+<span class="report-code-line">            }</span>
+<span class="report-code-line">            break;</span>
+<span class="report-code-line"></span>
+<span class="report-code-line" data-tooltip="回正狀態，等待 RETURN_TIME_MS 後回到 IDLE。">        case STATE_RETURNING:</span>
+<span class="report-code-line">            // 等待回正動作完成</span>
+<span class="report-code-line" data-tooltip="RETURN_TIME_MS 是回正等待時間，避免尚未回正就接受下一次分類。">            if (now - tiltStartTime &gt;= RETURN_TIME_MS) {</span>
+<span class="report-code-line">                currentState = STATE_IDLE;</span>
+<span class="report-code-line">            }</span>
+<span class="report-code-line">            break;</span>
+<span class="report-code-line">    }</span>
+<span class="report-code-line">}</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">// === Bridge 回調 ===</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">// 分類塑膠：舵機轉向塑膠桶方向</span>
+<span class="report-code-line" data-tooltip="sort_plastic() 是 Python 呼叫的 Bridge RPC 回調，驅動塑膠方向分類，現在帶有序列號 seq 與冷卻檢查。">void sort_plastic(int seq) {</span>
+<span class="report-code-line">    unsigned long now = millis();</span>
+<span class="report-code-line">    Serial.print(&quot;&gt;&gt; sort_plastic called, seq=&quot;);</span>
+<span class="report-code-line">    Serial.print(seq);</span>
+<span class="report-code-line">    Serial.print(&quot;, state=&quot;);</span>
+<span class="report-code-line">    Serial.print(currentState);</span>
+<span class="report-code-line">    Serial.print(&quot;, lastSeq=&quot;);</span>
+<span class="report-code-line">    Serial.print(lastSortSeq);</span>
+<span class="report-code-line">    Serial.print(&quot;, elapsed=&quot;);</span>
+<span class="report-code-line" data-tooltip="lastSortTime 與 lastSortSeq 用來防止 Bridge RPC 超時重試導致的重複分類動作。">    Serial.println(now - lastSortTime);</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">    if (currentState != STATE_IDLE) {</span>
+<span class="report-code-line">        Serial.println(&quot;&gt;&gt; REJECTED: not IDLE&quot;);</span>
+<span class="report-code-line">        return;</span>
+<span class="report-code-line">    }</span>
+<span class="report-code-line" data-tooltip="SORT_COOLDOWN_MS 確保 5 秒內不接受重複 sort 指令，防止 RPC 超時重試導致重複動作。">    if (now - lastSortTime &lt;= SORT_COOLDOWN_MS &amp;&amp; seq &lt;= lastSortSeq) {</span>
+<span class="report-code-line">        Serial.println(&quot;&gt;&gt; REJECTED: cooldown or duplicate seq&quot;);</span>
+<span class="report-code-line">        return;</span>
+<span class="report-code-line">    }</span>
+<span class="report-code-line"></span>
+<span class="report-code-line" data-tooltip="lastSortTime 與 lastSortSeq 用來防止 Bridge RPC 超時重試導致的重複分類動作。">    lastSortTime = now;</span>
+<span class="report-code-line">    lastSortSeq = seq;</span>
+<span class="report-code-line" data-tooltip="ANGLE_PLASTIC 是塑膠分類方向，舵機轉到 30° 讓平台左傾。">    servoWrite(ANGLE_PLASTIC);</span>
+<span class="report-code-line">    tiltStartTime = millis();</span>
+<span class="report-code-line">    currentState = STATE_TILTING;</span>
+<span class="report-code-line">    Serial.println(&quot;&gt;&gt; ACCEPTED: Sorting PLASTIC&quot;);</span>
+<span class="report-code-line">}</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">// 分類紙杯：舵機轉向紙杯桶方向</span>
+<span class="report-code-line" data-tooltip="sort_paper() 是 Python 呼叫的 Bridge RPC 回調，驅動紙杯方向分類，現在帶有序列號 seq 與冷卻檢查。">void sort_paper(int seq) {</span>
+<span class="report-code-line">    unsigned long now = millis();</span>
+<span class="report-code-line">    Serial.print(&quot;&gt;&gt; sort_paper called, seq=&quot;);</span>
+<span class="report-code-line">    Serial.print(seq);</span>
+<span class="report-code-line">    Serial.print(&quot;, state=&quot;);</span>
+<span class="report-code-line">    Serial.print(currentState);</span>
+<span class="report-code-line">    Serial.print(&quot;, lastSeq=&quot;);</span>
+<span class="report-code-line">    Serial.print(lastSortSeq);</span>
+<span class="report-code-line">    Serial.print(&quot;, elapsed=&quot;);</span>
+<span class="report-code-line" data-tooltip="lastSortTime 與 lastSortSeq 用來防止 Bridge RPC 超時重試導致的重複分類動作。">    Serial.println(now - lastSortTime);</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">    if (currentState != STATE_IDLE) {</span>
+<span class="report-code-line">        Serial.println(&quot;&gt;&gt; REJECTED: not IDLE&quot;);</span>
+<span class="report-code-line">        return;</span>
+<span class="report-code-line">    }</span>
+<span class="report-code-line" data-tooltip="SORT_COOLDOWN_MS 確保 5 秒內不接受重複 sort 指令，防止 RPC 超時重試導致重複動作。">    if (now - lastSortTime &lt;= SORT_COOLDOWN_MS &amp;&amp; seq &lt;= lastSortSeq) {</span>
+<span class="report-code-line">        Serial.println(&quot;&gt;&gt; REJECTED: cooldown or duplicate seq&quot;);</span>
+<span class="report-code-line">        return;</span>
+<span class="report-code-line">    }</span>
+<span class="report-code-line"></span>
+<span class="report-code-line" data-tooltip="lastSortTime 與 lastSortSeq 用來防止 Bridge RPC 超時重試導致的重複分類動作。">    lastSortTime = now;</span>
+<span class="report-code-line">    lastSortSeq = seq;</span>
+<span class="report-code-line" data-tooltip="ANGLE_PAPER 是紙杯分類方向，舵機轉到 150° 讓平台右傾。">    servoWrite(ANGLE_PAPER);</span>
+<span class="report-code-line">    tiltStartTime = millis();</span>
+<span class="report-code-line">    currentState = STATE_TILTING;</span>
+<span class="report-code-line">    Serial.println(&quot;&gt;&gt; ACCEPTED: Sorting PAPER CUP&quot;);</span>
+<span class="report-code-line">}</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">// 強制回正</span>
+<span class="report-code-line" data-tooltip="reset_platform() 由重置流程呼叫，用於強制平台回到水平待機。">void reset_platform(int dummy) {</span>
+<span class="report-code-line" data-tooltip="ANGLE_NEUTRAL 是水平待機角度，分類完成後平台會回到 90°。">    servoWrite(ANGLE_NEUTRAL);</span>
+<span class="report-code-line">    currentState = STATE_IDLE;</span>
+<span class="report-code-line">    Serial.println(&quot;&gt;&gt; Platform RESET to neutral&quot;);</span>
+<span class="report-code-line">}</span></code></pre>
+                    </div>
+                    <div id="report-code-python" class="report-code-block report-code-block-full hidden">
+<pre><code><span class="report-code-line"># 智慧垃圾分類回收桶 - Python 中台</span>
+<span class="report-code-line"># Smart Recycling Trash Bin - Python Middleware</span>
+<span class="report-code-line">#</span>
+<span class="report-code-line"># 功能：</span>
+<span class="report-code-line">#   1. AI 視覺偵測塑膠 (plastic_cup) 和紙杯 (paper_cup)</span>
+<span class="report-code-line">#   2. 自動觸發 Arduino 舵機分類</span>
+<span class="report-code-line">#   3. 統計收集數量並推送至前端</span>
+<span class="report-code-line">#   4. 冷卻時間防止重複辨識</span>
+<span class="report-code-line"></span>
+<span class="report-code-line"># SPDX-FileCopyrightText: Copyright (C) ARDUINO SRL (http://www.arduino.cc)</span>
+<span class="report-code-line"># SPDX-License-Identifier: MPL-2.0</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">import time</span>
+<span class="report-code-line">import threading</span>
+<span class="report-code-line" data-tooltip="Bridge 讓 Python 中台同步呼叫 MCU 端 Bridge.provide 註冊的函式。">from arduino.app_utils import App, Bridge</span>
+<span class="report-code-line" data-tooltip="WebUI 提供 HTTP 靜態頁面與 Socket.IO 即時訊息通道。">from arduino.app_bricks.web_ui import WebUI</span>
+<span class="report-code-line" data-tooltip="VideoObjectDetection 是 App Lab Brick，負責在 MPU 上執行物件偵測。">from arduino.app_bricks.video_objectdetection import VideoObjectDetection</span>
+<span class="report-code-line" data-tooltip="DatabaseManager 負責 SQLite 資料庫的讀寫與查詢。">from db import DatabaseManager</span>
+<span class="report-code-line">from arduino.app_bricks.dbstorage_sqlstore import DBStorageSQLStoreError</span>
+<span class="report-code-line"></span>
+<span class="report-code-line" data-tooltip="ui 是前端儀表板的 WebUI 實例，用來收發 Socket.IO 訊息。">ui = WebUI()</span>
+<span class="report-code-line" data-tooltip="confidence=0.5 表示 AI 偵測信心度低於 0.5 的結果會被過濾。">detection = VideoObjectDetection(confidence=0.5)</span>
+<span class="report-code-line"></span>
+<span class="report-code-line"># === 全域統計變數 ===</span>
+<span class="report-code-line">plastic_count = 0</span>
+<span class="report-code-line">paper_count = 0</span>
+<span class="report-code-line"></span>
+<span class="report-code-line"># === 資料庫初始化 ===</span>
+<span class="report-code-line">db = DatabaseManager()</span>
+<span class="report-code-line"></span>
+<span class="report-code-line"># === 冷卻時間控制 ===</span>
+<span class="report-code-line">COOLDOWN_SECONDS = 5    # 每次分類後冷卻 5 秒，避免重複辨識</span>
+<span class="report-code-line">last_sort_time = 0</span>
+<span class="report-code-line">is_sorting = False      # 分類進行中旗標</span>
+<span class="report-code-line" data-tooltip="sort_lock 是 threading.Lock，確保同一時間只有一個分類在進行，避免競爭條件。">sort_lock = threading.Lock()  # 保護 is_sorting 檢查與設定的競爭條件</span>
+<span class="report-code-line" data-tooltip="sort_seq 是遞增序列號，傳給 Arduino 做重複指令去重。">sort_seq = 0            # 遞增序列號，供 Arduino 去重使用</span>
+<span class="report-code-line"></span>
+<span class="report-code-line"># === 塑膠類關鍵字 ===</span>
+<span class="report-code-line" data-tooltip="PLASTIC_KEYWORDS 是塑膠類關鍵字，使用模糊包含比對。">PLASTIC_KEYWORDS = [&quot;plastic_cup&quot;, &quot;plastic&quot;, &quot;container&quot;]</span>
+<span class="report-code-line"># === 紙杯類關鍵字 ===</span>
+<span class="report-code-line" data-tooltip="PAPER_KEYWORDS 是紙杯/紙類關鍵字，使用模糊包含比對。">PAPER_KEYWORDS = [&quot;paper_cup&quot;, &quot;paper&quot;, &quot;mug&quot;, &quot;cup&quot;]</span>
+<span class="report-code-line"></span>
+<span class="report-code-line"></span>
+<span class="report-code-line" data-tooltip="get_time_str() 統一產生 HH:MM:SS 時間字串給歷史紀錄使用。">def get_time_str():</span>
+<span class="report-code-line">    &quot;&quot;&quot;取得當前時間字串 HH:MM:SS&quot;&quot;&quot;</span>
+<span class="report-code-line">    return time.strftime(&quot;%H:%M:%S&quot;, time.localtime())</span>
+<span class="report-code-line"></span>
+<span class="report-code-line"></span>
+<span class="report-code-line" data-tooltip="push_stats() 將目前統計推送到前端儀表板。">def push_stats():</span>
+<span class="report-code-line">    &quot;&quot;&quot;推送最新統計到前端（使用記憶體計數器，避免資料庫延遲或不一致）&quot;&quot;&quot;</span>
+<span class="report-code-line">    try:</span>
+<span class="report-code-line">        payload = {</span>
+<span class="report-code-line">            &quot;plastic&quot;: plastic_count,</span>
+<span class="report-code-line">            &quot;paper&quot;: paper_count,</span>
+<span class="report-code-line">            &quot;total&quot;: plastic_count + paper_count</span>
+<span class="report-code-line">        }</span>
+<span class="report-code-line" data-tooltip="trash_stats 是 Python 推送給前端更新計數器的 Socket.IO 頻道。">        ui.send_message(&quot;trash_stats&quot;, payload)</span>
+<span class="report-code-line">        print(f&quot;[STATS] trash_stats sent OK: {payload}&quot;, flush=True)</span>
+<span class="report-code-line">    except Exception as e:</span>
+<span class="report-code-line">        print(f&quot;[ERROR] push_stats failed: {e}&quot;, flush=True)</span>
+<span class="report-code-line"></span>
+<span class="report-code-line"></span>
+<span class="report-code-line" data-tooltip="do_sort() 是核心分類函式，受 threading.Lock 保護，負責冷卻判斷、呼叫 MCU、更新統計與寫入資料庫。">def do_sort(trash_type, confidence=None):</span>
+<span class="report-code-line">    &quot;&quot;&quot;執行分類動作（整個函式受 Lock 保護，確保同一時間只有一個分類在進行）&quot;&quot;&quot;</span>
+<span class="report-code-line">    global plastic_count, paper_count</span>
+<span class="report-code-line" data-tooltip="sort_seq 是遞增序列號，傳給 Arduino 做重複指令去重。">    global last_sort_time, is_sorting, sort_seq</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">    print(f&quot;[SORT] do_sort called: trash_type=&#x27;{trash_type}&#x27;, confidence={confidence}&quot;, flush=True)</span>
+<span class="report-code-line"></span>
+<span class="report-code-line" data-tooltip="sort_lock 是 threading.Lock，確保同一時間只有一個分類在進行，避免競爭條件。">    with sort_lock:</span>
+<span class="report-code-line">        now = time.time()</span>
+<span class="report-code-line">        print(f&quot;[SORT] Lock acquired. is_sorting={is_sorting}, cooldown={now - last_sort_time:.1f}s&quot;, flush=True)</span>
+<span class="report-code-line">        if is_sorting or (now - last_sort_time &lt; COOLDOWN_SECONDS):</span>
+<span class="report-code-line">            print(f&quot;[SKIP] do_sort blocked: is_sorting={is_sorting}, cooldown={now - last_sort_time:.1f}s&quot;, flush=True)</span>
+<span class="report-code-line">            return</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">        is_sorting = True</span>
+<span class="report-code-line">        seq = 0</span>
+<span class="report-code-line">        time_str = get_time_str()</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">        try:</span>
+<span class="report-code-line">            last_sort_time = now</span>
+<span class="report-code-line" data-tooltip="sort_seq 是遞增序列號，傳給 Arduino 做重複指令去重。">            sort_seq += 1</span>
+<span class="report-code-line" data-tooltip="sort_seq 是遞增序列號，傳給 Arduino 做重複指令去重。">            seq = sort_seq</span>
+<span class="report-code-line">            print(f&quot;[SORT] Starting sort #{seq} for {trash_type} at {time_str}&quot;, flush=True)</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">            if trash_type == &quot;plastic&quot;:</span>
+<span class="report-code-line">                plastic_count += 1</span>
+<span class="report-code-line">                print(f&quot;[SEQ {seq}] ♻️  [{time_str}] plastic_count incremented to {plastic_count}&quot;, flush=True)</span>
+<span class="report-code-line">                try:</span>
+<span class="report-code-line" data-tooltip="Bridge.call(&quot;sort_plastic&quot;, seq) 同步要求 MCU 將平台轉向塑膠桶，seq 用於去重。">                    Bridge.call(&quot;sort_plastic&quot;, seq)</span>
+<span class="report-code-line">                    print(f&quot;[SEQ {seq}] sort_plastic call completed&quot;, flush=True)</span>
+<span class="report-code-line">                except Exception as e:</span>
+<span class="report-code-line">                    print(f&quot;[SEQ {seq}] sort_plastic call failed: {e}&quot;, flush=True)</span>
+<span class="report-code-line">            elif trash_type == &quot;paper&quot;:</span>
+<span class="report-code-line">                paper_count += 1</span>
+<span class="report-code-line">                print(f&quot;[SEQ {seq}] 📄 [{time_str}] paper_count incremented to {paper_count}&quot;, flush=True)</span>
+<span class="report-code-line">                try:</span>
+<span class="report-code-line" data-tooltip="Bridge.call(&quot;sort_paper&quot;, seq) 同步要求 MCU 將平台轉向紙杯桶，seq 用於去重。">                    Bridge.call(&quot;sort_paper&quot;, seq)</span>
+<span class="report-code-line">                    print(f&quot;[SEQ {seq}] sort_paper call completed&quot;, flush=True)</span>
+<span class="report-code-line">                except Exception as e:</span>
+<span class="report-code-line">                    print(f&quot;[SEQ {seq}] sort_paper call failed: {e}&quot;, flush=True)</span>
+<span class="report-code-line">            else:</span>
+<span class="report-code-line">                print(f&quot;[WARN] Unknown trash_type: &#x27;{trash_type}&#x27;&quot;, flush=True)</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">            print(f&quot;[SORT] Before push_stats: plastic={plastic_count}, paper={paper_count}&quot;, flush=True)</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">            # 寫入資料庫</span>
+<span class="report-code-line">            try:</span>
+<span class="report-code-line" data-tooltip="寫入資料庫，儲存分類類型與信心度。">                db.insert_record(trash_type, confidence)</span>
+<span class="report-code-line">                print(f&quot;[DB] insert_record succeeded for {trash_type}&quot;, flush=True)</span>
+<span class="report-code-line">            except Exception as e:</span>
+<span class="report-code-line">                print(f&quot;[DB] insert_record failed: {e}&quot;, flush=True)</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">            # 推送分類事件到前端</span>
+<span class="report-code-line">            try:</span>
+<span class="report-code-line" data-tooltip="sort_event 頻道通知前端播放分類提示動畫。">                ui.send_message(&quot;sort_event&quot;, {</span>
+<span class="report-code-line">                    &quot;type&quot;: trash_type,</span>
+<span class="report-code-line">                    &quot;timestamp&quot;: int(now),</span>
+<span class="report-code-line">                    &quot;confidence&quot;: confidence</span>
+<span class="report-code-line">                })</span>
+<span class="report-code-line">                print(f&quot;[UI] sort_event sent for {trash_type}&quot;, flush=True)</span>
+<span class="report-code-line">            except Exception as e:</span>
+<span class="report-code-line">                print(f&quot;[UI] sort_event send failed: {e}&quot;, flush=True)</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">            # 推送更新後的統計</span>
+<span class="report-code-line">            print(f&quot;[SORT] Calling push_stats with plastic={plastic_count}, paper={paper_count}&quot;, flush=True)</span>
+<span class="report-code-line">            push_stats()</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">        finally:</span>
+<span class="report-code-line">            # 保險：無論中間任何步驟（包括 Bridge.call 拋出 BaseException）導致中斷，</span>
+<span class="report-code-line">            # 都在 5 秒後解鎖，避免 is_sorting 永遠卡死；同時保險推送統計一次</span>
+<span class="report-code-line">            print(f&quot;[SORT] finally block reached for seq={seq}, ensuring cleanup&quot;, flush=True)</span>
+<span class="report-code-line">            try:</span>
+<span class="report-code-line">                push_stats()</span>
+<span class="report-code-line">                print(f&quot;[SORT] Insurance push_stats sent from finally&quot;, flush=True)</span>
+<span class="report-code-line">            except Exception as e:</span>
+<span class="report-code-line">                print(f&quot;[SORT] Insurance push_stats failed: {e}&quot;, flush=True)</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">            def _unlock_sort():</span>
+<span class="report-code-line">                global is_sorting</span>
+<span class="report-code-line">                is_sorting = False</span>
+<span class="report-code-line">                print(&quot;[LOCK] is_sorting unlocked&quot;, flush=True)</span>
+<span class="report-code-line">            threading.Timer(5.0, _unlock_sort).start()</span>
+<span class="report-code-line">            print(&quot;[LOCK] is_sorting locked for 5s (cleanup in finally)&quot;, flush=True)</span>
+<span class="report-code-line"></span>
+<span class="report-code-line"></span>
+<span class="report-code-line"># === AI 偵測回調 ===</span>
+<span class="report-code-line" data-tooltip="on_detect() 是 AI 偵測回調，每當 VideoObjectDetection 有結果就執行。">def on_detect(detections):</span>
+<span class="report-code-line">    &quot;&quot;&quot;AI 偵測到物體時的回調&quot;&quot;&quot;</span>
+<span class="report-code-line">    content = list(detections.keys())</span>
+<span class="report-code-line">    print(f&quot;[AI] on_detect called with: {content}&quot;, flush=True)</span>
+<span class="report-code-line">    if not content:</span>
+<span class="report-code-line">        print(&quot;[AI] Empty detections, skipping&quot;, flush=True)</span>
+<span class="report-code-line">        return</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">    # 推送 AI 辨識結果到前端</span>
+<span class="report-code-line">    try:</span>
+<span class="report-code-line">        ui.send_message(&quot;ai_result&quot;, {&quot;objects&quot;: content})</span>
+<span class="report-code-line">    except Exception as e:</span>
+<span class="report-code-line">        print(f&quot;[AI] Failed to send ai_result: {e}&quot;, flush=True)</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">    # 檢查是否有垃圾類別</span>
+<span class="report-code-line">    detected_type = None</span>
+<span class="report-code-line">    detected_confidence = None</span>
+<span class="report-code-line">    for obj in content:</span>
+<span class="report-code-line">        obj_lower = obj.lower()</span>
+<span class="report-code-line">        print(f&quot;[AI] Checking object: &#x27;{obj}&#x27; (lower: &#x27;{obj_lower}&#x27;)&quot;, flush=True)</span>
+<span class="report-code-line">        # 優先檢查塑膠類</span>
+<span class="report-code-line" data-tooltip="PLASTIC_KEYWORDS 是塑膠類關鍵字，使用模糊包含比對。">        for kw in PLASTIC_KEYWORDS:</span>
+<span class="report-code-line">            if kw in obj_lower:</span>
+<span class="report-code-line">                detected_type = &quot;plastic&quot;</span>
+<span class="report-code-line">                raw_conf = detections.get(obj)</span>
+<span class="report-code-line">                # VideoObjectDetection 回傳的 confidence 可能是 list of dicts，提取第一個 confidence 數值</span>
+<span class="report-code-line">                if isinstance(raw_conf, list) and len(raw_conf) &gt; 0:</span>
+<span class="report-code-line">                    detected_confidence = raw_conf[0].get(&#x27;confidence&#x27;) if isinstance(raw_conf[0], dict) else raw_conf[0]</span>
+<span class="report-code-line">                elif isinstance(raw_conf, dict):</span>
+<span class="report-code-line">                    detected_confidence = raw_conf.get(&#x27;confidence&#x27;)</span>
+<span class="report-code-line">                else:</span>
+<span class="report-code-line">                    detected_confidence = raw_conf</span>
+<span class="report-code-line">                print(f&quot;[AI] Matched PLASTIC keyword &#x27;{kw}&#x27; in &#x27;{obj_lower}&#x27;, confidence={detected_confidence}&quot;, flush=True)</span>
+<span class="report-code-line">                break</span>
+<span class="report-code-line">        if detected_type:</span>
+<span class="report-code-line">            break</span>
+<span class="report-code-line">        # 再檢查紙杯類</span>
+<span class="report-code-line" data-tooltip="PAPER_KEYWORDS 是紙杯/紙類關鍵字，使用模糊包含比對。">        for kw in PAPER_KEYWORDS:</span>
+<span class="report-code-line">            if kw in obj_lower:</span>
+<span class="report-code-line">                detected_type = &quot;paper&quot;</span>
+<span class="report-code-line">                raw_conf = detections.get(obj)</span>
+<span class="report-code-line">                if isinstance(raw_conf, list) and len(raw_conf) &gt; 0:</span>
+<span class="report-code-line">                    detected_confidence = raw_conf[0].get(&#x27;confidence&#x27;) if isinstance(raw_conf[0], dict) else raw_conf[0]</span>
+<span class="report-code-line">                elif isinstance(raw_conf, dict):</span>
+<span class="report-code-line">                    detected_confidence = raw_conf.get(&#x27;confidence&#x27;)</span>
+<span class="report-code-line">                else:</span>
+<span class="report-code-line">                    detected_confidence = raw_conf</span>
+<span class="report-code-line">                print(f&quot;[AI] Matched PAPER keyword &#x27;{kw}&#x27; in &#x27;{obj_lower}&#x27;, confidence={detected_confidence}&quot;, flush=True)</span>
+<span class="report-code-line">                break</span>
+<span class="report-code-line">        if detected_type:</span>
+<span class="report-code-line">            break</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">    if detected_type:</span>
+<span class="report-code-line">        print(f&quot;[AI] Calling do_sort(&#x27;{detected_type}&#x27;, confidence={detected_confidence})&quot;, flush=True)</span>
+<span class="report-code-line">        do_sort(detected_type, detected_confidence)</span>
+<span class="report-code-line">    else:</span>
+<span class="report-code-line">        print(f&quot;[AI] No match found in objects: {content}&quot;, flush=True)</span>
+<span class="report-code-line"></span>
+<span class="report-code-line" data-tooltip="把 on_detect 註冊為 AI 偵測回調，連接推論結果與分類邏輯。">detection.on_detect_all(on_detect)</span>
+<span class="report-code-line"></span>
+<span class="report-code-line"></span>
+<span class="report-code-line"># === 前端手動測試按鈕 ===</span>
+<span class="report-code-line" data-tooltip="on_test_sort() 處理前端手動測試按鈕，繞過 AI 直接分類。">def on_test_sort(sid, trash_type):</span>
+<span class="report-code-line">    &quot;&quot;&quot;手動測試分類（前端按鈕觸發）&quot;&quot;&quot;</span>
+<span class="report-code-line">    if trash_type in (&quot;plastic&quot;, &quot;paper&quot;):</span>
+<span class="report-code-line">        print(f&quot;🧪 Manual test: {trash_type}&quot;, flush=True)</span>
+<span class="report-code-line">        do_sort(trash_type, confidence=None)</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">ui.on_message(&quot;test_sort&quot;, on_test_sort)</span>
+<span class="report-code-line"></span>
+<span class="report-code-line"></span>
+<span class="report-code-line"># === 前端重置統計 ===</span>
+<span class="report-code-line" data-tooltip="on_reset_stats() 處理前端清空統計資料的請求，現在也會清空資料庫。">def on_reset_stats(sid, data):</span>
+<span class="report-code-line">    &quot;&quot;&quot;清除統計數據&quot;&quot;&quot;</span>
+<span class="report-code-line">    global plastic_count, paper_count</span>
+<span class="report-code-line">    db.delete_all()</span>
+<span class="report-code-line">    plastic_count = 0</span>
+<span class="report-code-line">    paper_count = 0</span>
+<span class="report-code-line">    Bridge.call(&quot;reset_platform&quot;, 1)</span>
+<span class="report-code-line">    push_stats()</span>
+<span class="report-code-line">    print(&quot;🔄 Statistics RESET&quot;, flush=True)</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">ui.on_message(&quot;reset_stats&quot;, on_reset_stats)</span>
+<span class="report-code-line"></span>
+<span class="report-code-line"></span>
+<span class="report-code-line"># === 前端請求同步統計 ===</span>
+<span class="report-code-line" data-tooltip="on_request_stats() 讓前端重新連線後能立刻取得目前統計。">def on_request_stats(sid, data):</span>
+<span class="report-code-line">    &quot;&quot;&quot;前端連線後請求同步當前統計&quot;&quot;&quot;</span>
+<span class="report-code-line">    push_stats()</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">ui.on_message(&quot;request_stats&quot;, on_request_stats)</span>
+<span class="report-code-line"></span>
+<span class="report-code-line"></span>
+<span class="report-code-line"># === 前端資料庫查詢 ===</span>
+<span class="report-code-line">def on_query_records(sid, data):</span>
+<span class="report-code-line">    &quot;&quot;&quot;查詢回收記錄（分頁）&quot;&quot;&quot;</span>
+<span class="report-code-line">    try:</span>
+<span class="report-code-line">        page = data.get(&quot;page&quot;, 1)</span>
+<span class="report-code-line">        per_page = data.get(&quot;per_page&quot;, 10)</span>
+<span class="report-code-line">        type_filter = data.get(&quot;type_filter&quot;)</span>
+<span class="report-code-line">        date_from = data.get(&quot;date_from&quot;)</span>
+<span class="report-code-line">        date_to = data.get(&quot;date_to&quot;)</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">        records = db.get_records(</span>
+<span class="report-code-line">            page=page, per_page=per_page,</span>
+<span class="report-code-line">            type_filter=type_filter, date_from=date_from, date_to=date_to</span>
+<span class="report-code-line">        )</span>
+<span class="report-code-line">        counts = db.get_record_count(</span>
+<span class="report-code-line">            type_filter=type_filter, date_from=date_from, date_to=date_to</span>
+<span class="report-code-line">        )</span>
+<span class="report-code-line">        ui.send_message(&quot;db_query_result&quot;, {</span>
+<span class="report-code-line">            &quot;_query_type&quot;: &quot;records&quot;,</span>
+<span class="report-code-line">            &quot;records&quot;: records,</span>
+<span class="report-code-line">            &quot;total&quot;: counts[&quot;total&quot;],</span>
+<span class="report-code-line">            &quot;page&quot;: page</span>
+<span class="report-code-line">        })</span>
+<span class="report-code-line">    except DBStorageSQLStoreError as e:</span>
+<span class="report-code-line">        ui.send_message(&quot;db_query_result&quot;, {&quot;_query_type&quot;: &quot;records&quot;, &quot;error&quot;: str(e)})</span>
+<span class="report-code-line"></span>
+<span class="report-code-line"></span>
+<span class="report-code-line">def on_query_stats(sid, data):</span>
+<span class="report-code-line">    &quot;&quot;&quot;查詢回收統計計數&quot;&quot;&quot;</span>
+<span class="report-code-line">    try:</span>
+<span class="report-code-line">        type_filter = data.get(&quot;type_filter&quot;)</span>
+<span class="report-code-line">        date_from = data.get(&quot;date_from&quot;)</span>
+<span class="report-code-line">        date_to = data.get(&quot;date_to&quot;)</span>
+<span class="report-code-line">        counts = db.get_record_count(</span>
+<span class="report-code-line">            type_filter=type_filter, date_from=date_from, date_to=date_to</span>
+<span class="report-code-line">        )</span>
+<span class="report-code-line">        ui.send_message(&quot;db_query_result&quot;, {</span>
+<span class="report-code-line">            &quot;_query_type&quot;: &quot;stats&quot;,</span>
+<span class="report-code-line">            &quot;plastic&quot;: counts[&quot;plastic&quot;],</span>
+<span class="report-code-line">            &quot;paper&quot;: counts[&quot;paper&quot;],</span>
+<span class="report-code-line">            &quot;total&quot;: counts[&quot;total&quot;]</span>
+<span class="report-code-line">        })</span>
+<span class="report-code-line">    except DBStorageSQLStoreError as e:</span>
+<span class="report-code-line">        ui.send_message(&quot;db_query_result&quot;, {&quot;_query_type&quot;: &quot;stats&quot;, &quot;error&quot;: str(e)})</span>
+<span class="report-code-line"></span>
+<span class="report-code-line"></span>
+<span class="report-code-line">def on_query_daily_counts(sid, data):</span>
+<span class="report-code-line">    &quot;&quot;&quot;查詢每日回收計數&quot;&quot;&quot;</span>
+<span class="report-code-line">    try:</span>
+<span class="report-code-line">        date_from = data.get(&quot;date_from&quot;)</span>
+<span class="report-code-line">        date_to = data.get(&quot;date_to&quot;)</span>
+<span class="report-code-line">        result = db.get_daily_counts(date_from=date_from, date_to=date_to)</span>
+<span class="report-code-line">        ui.send_message(&quot;db_query_result&quot;, {&quot;_query_type&quot;: &quot;daily_counts&quot;, &quot;data&quot;: result})</span>
+<span class="report-code-line">    except DBStorageSQLStoreError as e:</span>
+<span class="report-code-line">        ui.send_message(&quot;db_query_result&quot;, {&quot;_query_type&quot;: &quot;daily_counts&quot;, &quot;error&quot;: str(e)})</span>
+<span class="report-code-line"></span>
+<span class="report-code-line"></span>
+<span class="report-code-line">def on_query_hourly_distribution(sid, data):</span>
+<span class="report-code-line">    &quot;&quot;&quot;查詢每小時回收分佈&quot;&quot;&quot;</span>
+<span class="report-code-line">    try:</span>
+<span class="report-code-line">        date = data.get(&quot;date&quot;)</span>
+<span class="report-code-line">        result = db.get_hourly_distribution(date=date)</span>
+<span class="report-code-line">        ui.send_message(&quot;db_query_result&quot;, {&quot;_query_type&quot;: &quot;hourly_distribution&quot;, &quot;data&quot;: result})</span>
+<span class="report-code-line">    except DBStorageSQLStoreError as e:</span>
+<span class="report-code-line">        ui.send_message(&quot;db_query_result&quot;, {&quot;_query_type&quot;: &quot;hourly_distribution&quot;, &quot;error&quot;: str(e)})</span>
+<span class="report-code-line"></span>
+<span class="report-code-line"></span>
+<span class="report-code-line">ui.on_message(&quot;db_query_records&quot;, on_query_records)</span>
+<span class="report-code-line">ui.on_message(&quot;db_query_stats&quot;, on_query_stats)</span>
+<span class="report-code-line">ui.on_message(&quot;db_query_daily_counts&quot;, on_query_daily_counts)</span>
+<span class="report-code-line">ui.on_message(&quot;db_query_hourly_distribution&quot;, on_query_hourly_distribution)</span>
+<span class="report-code-line"></span>
+<span class="report-code-line"></span>
+<span class="report-code-line">def on_query_daily_counts_for_heatmap(sid, data):</span>
+<span class="report-code-line">    &quot;&quot;&quot;查詢最近 30 天每日回收計數（供熱力圖使用）&quot;&quot;&quot;</span>
+<span class="report-code-line">    try:</span>
+<span class="report-code-line">        thirty_days_ago = int(time.time()) - 30 * 86400</span>
+<span class="report-code-line">        result = db.get_daily_counts(date_from=thirty_days_ago)</span>
+<span class="report-code-line">        ui.send_message(&quot;db_query_result&quot;, {&quot;_query_type&quot;: &quot;heatmap&quot;, &quot;data&quot;: result})</span>
+<span class="report-code-line">    except DBStorageSQLStoreError as e:</span>
+<span class="report-code-line">        ui.send_message(&quot;db_query_result&quot;, {&quot;_query_type&quot;: &quot;heatmap&quot;, &quot;error&quot;: str(e)})</span>
+<span class="report-code-line"></span>
+<span class="report-code-line"></span>
+<span class="report-code-line">ui.on_message(&quot;db_query_heatmap&quot;, on_query_daily_counts_for_heatmap)</span>
+<span class="report-code-line"></span>
+<span class="report-code-line"></span>
+<span class="report-code-line"># === 資料庫啟動 ===</span>
+<span class="report-code-line">db.start()</span>
+<span class="report-code-line"></span>
+<span class="report-code-line"># === 從資料庫初始化計數 ===</span>
+<span class="report-code-line">counts = db.get_record_count()</span>
+<span class="report-code-line">plastic_count = counts[&quot;plastic&quot;]</span>
+<span class="report-code-line">paper_count = counts[&quot;paper&quot;]</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">print(&quot;🗑️  Smart Recycling Trash Bin Ready&quot;, flush=True)</span>
+<span class="report-code-line" data-tooltip="PLASTIC_KEYWORDS 是塑膠類關鍵字，使用模糊包含比對。">print(f&quot;   Cooldown: {COOLDOWN_SECONDS}s | Plastic keywords: {PLASTIC_KEYWORDS}&quot;, flush=True)</span>
+<span class="report-code-line" data-tooltip="PAPER_KEYWORDS 是紙杯/紙類關鍵字，使用模糊包含比對。">print(f&quot;   Paper keywords: {PAPER_KEYWORDS}&quot;, flush=True)</span>
+<span class="report-code-line"></span>
+<span class="report-code-line"># === 清理與執行 ===</span>
+<span class="report-code-line">import signal</span>
+<span class="report-code-line">import sys</span>
+<span class="report-code-line"></span>
+<span class="report-code-line" data-tooltip="cleanup() 在收到 SIGINT/SIGTERM 時關閉資料庫後結束程式。">def cleanup(signum=None, frame=None):</span>
+<span class="report-code-line">    &quot;&quot;&quot;關閉資料庫後結束程式&quot;&quot;&quot;</span>
+<span class="report-code-line">    print(&quot;
+🛑 Shutting down...&quot;, flush=True)</span>
+<span class="report-code-line">    db.stop()</span>
+<span class="report-code-line">    sys.exit(0)</span>
+<span class="report-code-line"></span>
+<span class="report-code-line">signal.signal(signal.SIGINT, cleanup)</span>
+<span class="report-code-line">signal.signal(signal.SIGTERM, cleanup)</span>
+<span class="report-code-line"></span>
+<span class="report-code-line" data-tooltip="App.run() 啟動 App Lab 應用主迴圈，必須放在檔案最後。">App.run()</span></code></pre>
+                    </div>
+                    <p>AI 推論採用 <span class="report-fn" data-tooltip="AI 推論 Brick：使用 Adreno GPU 執行 YOLO 物件偵測，confidence=0.5"><strong>VideoObjectDetection</strong></span> Brick，於 QRB2210 的 Adreno GPU 上執行 YOLO-based 物件偵測，confidence threshold 設為 <strong>0.5</strong>。偵測結果為多形結構，經 <code>extract_detection_bboxes()</code>（main.py:148-188）正規化為 bbox 列表，由 <code>on_detect()</code> 匹配後交由 <code><span class="report-fn" data-tooltip="核心分類邏輯：檢查冷卻時間後，呼叫 Bridge RPC 驅動舵機並推送統計">do_sort()</span></code>。</p>
+                    <p>關鍵字使用模糊匹配（<code>in</code>運算子）：<code>plastic_cup</code>、<code>plastic</code>、<code>container</code> 對應<strong>塑膠</strong>；<code>paper_cup</code>、<code>paper</code>、<code>mug</code>、<code>cup</code> 對應<strong>紙杯</strong>。每次分類後有 <strong>5 秒冷卻</strong>（<code><span class="report-fn" data-tooltip="冷卻時間常數：分類後 5 秒內不再重複辨識，避免同一物體被重複分類">COOLDOWN_SECONDS</span></code>），防止同個物體被重複偵測並分類。</p>
+                </div>
+            </section>
+            <section class="report-section" id="report-stats">
+                <h2 class="report-section-title">即時統計</h2>
+                <div class="report-section-body">
+                    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:stretch;">
+                        <div class="report-stat-box" style="flex:1;min-width:120px;text-align:center;padding:20px 16px;border-radius:6px;border:1px solid #e5e7eb;background:#fff;">
+                            <div style="font-size:12px;color:#6b7280;margin-bottom:4px;">塑膠瓶</div>
+                            <div id="report-count-plastic" style="font-size:32px;font-weight:700;color:#f59e0b;font-variant-numeric:tabular-nums;">0</div>
+                            <div style="font-size:11px;color:#9ca3af;">件</div>
+                        </div>
+                        <div class="report-stat-box" style="flex:1;min-width:120px;text-align:center;padding:20px 16px;border-radius:6px;border:1px solid #e5e7eb;background:#fff;">
+                            <div style="font-size:12px;color:#6b7280;margin-bottom:4px;">紙杯</div>
+                            <div id="report-count-paper" style="font-size:32px;font-weight:700;color:#10b981;font-variant-numeric:tabular-nums;">0</div>
+                            <div style="font-size:11px;color:#9ca3af;">件</div>
+                        </div>
+                        <div class="report-stat-box" style="flex:1;min-width:120px;text-align:center;padding:20px 16px;border-radius:6px;border:1px solid #e5e7eb;background:#fff;">
+                            <div style="font-size:12px;color:#6b7280;margin-bottom:4px;">總計</div>
+                            <div id="report-count-total" style="font-size:32px;font-weight:700;color:#0070f3;font-variant-numeric:tabular-nums;">0</div>
+                            <div style="font-size:11px;color:#9ca3af;">件</div>
+                        </div>
+                    </div>
+                    <div style="display:flex;justify-content:center;margin-top:24px;">
+                        <svg id="report-pie-chart" viewBox="0 0 200 200" style="width:160px;height:160px;">
+                            <circle cx="100" cy="100" r="80" fill="none" stroke="#ebedf0" stroke-width="24"/>
+                            <circle id="report-pie-plastic" cx="100" cy="100" r="80" fill="none" stroke="#f59e0b" stroke-width="24" stroke-dasharray="0 502.65" transform="rotate(-90 100 100)" class="pie-segment"/>
+                            <circle id="report-pie-paper" cx="100" cy="100" r="80" fill="none" stroke="#10b981" stroke-width="24" stroke-dasharray="0 502.65" transform="rotate(-90 100 100)" class="pie-segment"/>
+                            <text x="100" y="105" text-anchor="middle" class="pie-center-text" id="report-pie-percent">0%</text>
+                        </svg>
+                    </div>
+                    <div style="display:flex;justify-content:center;gap:24px;margin-top:12px;">
+                        <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:#374151;"><div style="width:12px;height:12px;border-radius:2px;background:#f59e0b;"></div>塑膠</div>
+                        <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:#374151;"><div style="width:12px;height:12px;border-radius:2px;background:#10b981;"></div>紙類</div>
+                    </div>
+                </div>
+            </section>
+            <section class="report-section" id="report-camera">
+                <h2 class="report-section-title">即時影像</h2>
+                <div class="report-section-body">
+                    <div style="position:relative;width:100%;max-width:640px;margin:0 auto;border-radius:8px;overflow:hidden;border:1px solid #e5e7eb;background:#000;">
+                        <span class="live-badge" style="position:absolute;top:12px;left:12px;z-index:2;">即時</span>
+                        <iframe id="report-cam-frame" scrolling="no" style="width:100%;aspect-ratio:16/9;border:none;display:block;"></iframe>
+                        <canvas id="report-ai-bbox-canvas" class="ai-bbox-canvas"></canvas>
+                        <div id="report-ai-text" style="position:absolute;bottom:12px;left:12px;right:12px;z-index:2;background:rgba(0,0,0,0.6);color:#fff;padding:6px 12px;border-radius:4px;font-size:13px;font-family:'Inter','Noto Sans TC',sans-serif;">系統就緒</div>
+                    </div>
+                </div>
+            </section>
+            <section class="report-section" id="report-charts">
+                <h2 class="report-section-title">成果圖表</h2>
+                <div class="report-section-body">
+                    <div class="ui-card" style="margin-bottom: 24px;">
+                        <div class="card-header border-bottom" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                            <h3 class="section-title" style="margin: 0;">分類統計圖</h3>
+                            <div class="chart-controls" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                <div class="chart-type-toggle">
+                                    <button class="toggle-btn active" id="report-btn-line" onclick="reportSwitchChartType('line')">折線圖</button>
+                                    <button class="toggle-btn" id="report-btn-bar" onclick="reportSwitchChartType('bar')">長條圖</button>
+                                    <button class="toggle-btn" id="report-btn-pie" onclick="reportSwitchChartType('pie')">圓餅圖</button>
+                                </div>
+                                <select class="ui-select" id="report-chart-range" onchange="reportUpdateChart()">
+                                    <option value="today">今日</option>
+                                    <option value="7">過去 7 天</option>
+                                    <option value="30">過去 30 天</option>
+                                    <option value="all" selected>全部時間</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="line-chart-container">
+                            <canvas id="report-result-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <section class="report-section" id="report-team">
+                <h2 class="report-section-title">團隊介紹</h2>
+                <div class="report-section-body">
+                    <div class="report-team-grid">
+                        <div class="report-team-card">
+                            <div class="report-team-photo"></div>
+                            <div class="report-team-name">蔡沐佑</div>
+                            <div class="report-team-role">程式開發 · 資二1</div>
+                        </div>
+                        <div class="report-team-card">
+                            <div class="report-team-photo"></div>
+                            <div class="report-team-name">邱彥誠</div>
+                            <div class="report-team-role">硬體組裝 · 資二1</div>
+                        </div>
+                        <div class="report-team-card">
+                            <div class="report-team-photo"></div>
+                            <div class="report-team-name">洪誌壕</div>
+                            <div class="report-team-role">資料處理 · 資二1</div>
+                        </div>
+                        <div class="report-team-card">
+                            <div class="report-team-photo"></div>
+                            <div class="report-team-name">林柏豪</div>
+                            <div class="report-team-role">文件撰寫 · 資二1</div>
+                        </div>
+                    </div>
+                    <div class="report-team-advisor" style="margin-top:20px;text-align:center;padding:16px;background:var(--card-bg);border:2px solid var(--accent-blue);border-radius:var(--radius);">
+                        <div class="report-team-name" style="font-size:16px;">指導老師</div>
+                        <div class="report-team-role">指導老師 · 國立華南高商</div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- TOP LEVEL: CONSOLE (wraps existing 3 tabs) -->
+        <!-- ========================================== -->
+        <div id="view-console" class="view-content console-view">
+            <!-- ========================================== -->
+            <!-- TAB 1: OVERVIEW                            -->
+            <!-- ========================================== -->
+            <div id="view-overview" class="view-content active">
+            <div class="dashboard-grid">
+                <!-- Data Column -->
+                <div class="column stats-column">
+                    <div class="ui-card total-card">
+                        <h3 class="section-title">總處理量</h3>
+                        <div class="total-value" id="count-total">0</div>
+                        <span class="unit">件</span>
+                    </div>
+                    
+                    <div class="ui-card stat-detail-card">
+                        <div class="stat-item">
+                            <div class="stat-info">
+                                <span class="stat-label">塑膠瓶</span>
+                                <span class="stat-value warning-text" id="count-plastic">0</span>
+                            </div>
+                        </div>
+                        <div class="divider"></div>
+                        <div class="stat-item">
+                            <div class="stat-info">
+                                <span class="stat-label">紙杯</span>
+                                <span class="stat-value success-text" id="count-paper">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="ui-card chart-card">
+                        <h3 class="section-title">分類比例</h3>
+                        <div class="chart-wrapper">
+                            <svg id="pie-chart" viewBox="0 0 200 200" class="pie-chart">
+                                <circle cx="100" cy="100" r="80" fill="none" stroke="#ebedf0" stroke-width="24"/>
+                                <circle id="pie-plastic" cx="100" cy="100" r="80" fill="none" stroke="#f59e0b" stroke-width="24" stroke-dasharray="0 502.65" transform="rotate(-90 100 100)" class="pie-segment"/>
+                                <circle id="pie-paper" cx="100" cy="100" r="80" fill="none" stroke="#10b981" stroke-width="24" stroke-dasharray="0 502.65" transform="rotate(-90 100 100)" class="pie-segment"/>
+                                <text x="100" y="105" text-anchor="middle" class="pie-center-text" id="pie-percent">0%</text>
+                            </svg>
+                            <div class="legend">
+                                <div class="legend-item"><div class="legend-color bg-warning"></div>塑膠</div>
+                                <div class="legend-item"><div class="legend-color bg-success"></div>紙類</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Connection Log Terminal Card -->
+                    <div class="ui-card terminal-card">
+                        <div class="card-header border-bottom">
+                            <h3 class="section-title">連線日誌</h3>
+                            <button class="ui-btn btn-outline" style="padding: 2px 8px; font-size: 11px; width: auto;" onclick="exportConnectionLogs()">匯出 TXT</button>
+                        </div>
+                        <div class="terminal-container" id="conn-log-terminal">
+                            <div class="terminal-content" id="conn-log-content"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Video & Chart Column -->
+                <div class="column center-column">
+                    <div class="ui-card video-card">
+                        <div class="card-header border-bottom">
+                            <!-- Removed "即時影像" text -->
+                            <span class="live-badge">即時</span>
+                        </div>
+                        <div class="video-container">
+                            <iframe id="cam-frame" scrolling="no"></iframe>
+                            <canvas id="ai-bbox-canvas" class="ai-bbox-canvas"></canvas>
+                            <div class="hud" id="ai-text">系統就緒</div>
+                            <div class="overlay hidden" id="sort-indicator">
+                                <span id="sort-indicator-icon"></span>
+                                <span id="sort-indicator-text"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Line Chart Card -->
+                    <div class="ui-card line-chart-card" id="chart-export-target">
+                        <div class="card-header border-bottom">
+                            <h3 class="section-title">統計數據</h3>
+                            <div class="chart-controls">
+                                <div class="chart-type-toggle">
+                                    <button class="toggle-btn active" id="btn-line" onclick="switchChartType('line')">折線圖</button>
+                                    <button class="toggle-btn" id="btn-bar" onclick="switchChartType('bar')">長條圖</button>
+                                </div>
+                                <select class="ui-select" id="chart-range" onchange="updateChart()">
+                                    <option value="today">今日</option>
+                                    <option value="7">過去 7 天</option>
+                                    <option value="30">過去 30 天</option>
+                                    <option value="all" selected>全部時間</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="line-chart-container">
+                            <canvas id="time-line-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- TAB 2: HISTORY & HEATMAP                   -->
+        <!-- ========================================== -->
+        <div id="view-history" class="view-content">
+            <div class="history-grid">
+                
+                <!-- Heatmap -->
+                <div class="ui-card heatmap-card">
+                    <div class="card-header border-bottom">
+                        <h3 class="section-title">活動紀錄</h3>
+                        <div class="calendar-nav">
+                            <button class="page-btn" onclick="changeMonth(-1)">←</button>
+                            <span id="calendar-month-year"></span>
+                            <button class="page-btn" onclick="changeMonth(1)">→</button>
+                        </div>
+                    </div>
+                    <div class="heatmap-wrapper">
+                        <div class="heatmap-scroll">
+                            <div id="heatmap-grid" class="heatmap-grid">
+                                <!-- Generated by JS -->
+                            </div>
+                        </div>
+                        <div class="heatmap-legend">
+                            <span class="text-muted">少</span>
+                            <div class="heat-box level-0"></div>
+                            <div class="heat-box level-1"></div>
+                            <div class="heat-box level-2"></div>
+                            <div class="heat-box level-3"></div>
+                            <div class="heat-box level-4"></div>
+                            <span class="text-muted">多</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- History List -->
+                <div class="ui-card history-card">
+                    <div class="card-header border-bottom">
+                        <h3 class="section-title">事件日誌</h3>
+                        <span class="badge" id="history-count">0</span>
+                    </div>
+                    <div class="history-filter-container">
+                        <div class="history-filter-row">
+                            <div class="history-filter-group">
+                                <label class="history-filter-label">類型</label>
+                                <select class="history-filter-select" id="history-type-filter">
+                                    <option value="">全部</option>
+                                    <option value="plastic">塑膠</option>
+                                    <option value="paper">紙杯</option>
+                                </select>
+                            </div>
+                            <div class="history-filter-group">
+                                <label class="history-filter-label">開始日期</label>
+                                <input type="date" class="history-filter-date" id="history-date-from">
+                            </div>
+                            <div class="history-filter-group">
+                                <label class="history-filter-label">結束日期</label>
+                                <input type="date" class="history-filter-date" id="history-date-to">
+                            </div>
+                            <div class="history-filter-buttons">
+                                <button class="ui-btn btn-primary" onclick="applyHistoryFilter()">套用篩選</button>
+                                <button class="ui-btn btn-outline" onclick="clearHistoryFilter()">清除篩選</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="history-list" id="history-list">
+                        <div class="empty-state" id="history-empty">
+                            <p>尚無活動紀錄</p>
+                        </div>
+                    </div>
+                    <!-- Pagination -->
+                    <div class="pagination border-top" id="pagination">
+                        <button class="page-btn" id="page-prev" onclick="changePage(-1)">←</button>
+                        <span class="page-info" id="page-info">1 / 1</span>
+                        <button class="page-btn" id="page-next" onclick="changePage(1)">→</button>
+                        <div class="page-jump">
+                            前往 <input type="number" class="ui-input" id="page-input" min="1" onchange="jumpPage(this.value)">
+                        </div>
+                    </div>
+                </div>
+                
+            </div>
+
+            <!-- Statistics Charts Section -->
+            <div class="stats-charts-grid">
+                <div class="ui-card">
+                    <div class="card-header border-bottom" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                        <h3 class="section-title" style="margin: 0;">每日趨勢</h3>
+                        <div class="chart-range-toggle">
+                            <button class="toggle-btn active" id="trend-btn-7" onclick="switchDailyTrendRange(7)">近 7 天</button>
+                            <button class="toggle-btn" id="trend-btn-30" onclick="switchDailyTrendRange(30)">近 30 天</button>
+                        </div>
+                    </div>
+                    <div class="stats-chart-container">
+                        <canvas id="daily-trend-chart"></canvas>
+                    </div>
+                </div>
+                <div class="ui-card">
+                    <div class="card-header border-bottom">
+                        <h3 class="section-title">時段分佈（今日）</h3>
+                    </div>
+                    <div class="stats-chart-container">
+                        <canvas id="time-dist-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- TAB 3: SETTINGS                            -->
+        <!-- ========================================== -->
+        <div id="view-settings" class="view-content">
+            <div class="settings-grid">
+                
+                <!-- Left Column -->
+                <div class="column">
+                    <div class="ui-card controls-card">
+                        <div class="card-header border-bottom">
+                            <h3 class="section-title">系統模擬</h3>
+                        </div>
+                        <div class="control-buttons">
+                            <button class="ui-btn btn-primary" onclick="testSort('plastic')">模擬塑膠分類</button>
+                            <button class="ui-btn btn-success" onclick="testSort('paper')">模擬紙類分類</button>
+                        </div>
+                    </div>
+
+                    <div class="ui-card controls-card">
+                        <div class="card-header border-bottom">
+                            <h3 class="section-title">資料管理</h3>
+                        </div>
+                        <div class="control-buttons">
+                            <button class="ui-btn btn-outline" onclick="exportToCSV()">匯出 CSV</button>
+                            <div class="divider my-2"></div>
+                            <button class="ui-btn btn-danger" onclick="resetStats()">重設資料庫</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column -->
+                <div class="column">
+                    <div class="ui-card controls-card">
+                        <div class="card-header border-bottom">
+                            <h3 class="section-title">進階圖表匯出</h3>
+                        </div>
+                        <div class="export-filter-group" style="padding: 16px; display: flex; flex-direction: column; gap: 14px;">
+                            <div>
+                                <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">時間範圍</label>
+                                <select class="ui-select" id="export-time-range" style="width: 100%;" onchange="toggleCustomRange()">
+                                    <option value="today">今日</option>
+                                    <option value="3">過去 3 天</option>
+                                    <option value="7">過去 7 天</option>
+                                    <option value="30">過去 30 天</option>
+                                    <option value="all" selected>全部時間</option>
+                                    <option value="custom">自訂範圍...</option>
+                                </select>
+                            </div>
+                            <div id="custom-range-inputs" style="display: none; gap: 8px; flex-direction: column;">
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="text" class="ui-input" id="export-start-date" placeholder="起始 (例：2026-05-01)" style="flex: 1;">
+                                    <span style="color: var(--text-muted);">~</span>
+                                    <input type="text" class="ui-input" id="export-end-date" placeholder="結束 (例：2026-05-06)" style="flex: 1;">
+                                </div>
+                            </div>
+                            <div>
+                                <label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">圖表類型</label>
+                                <select class="ui-select" id="export-chart-type" style="width: 100%;">
+                                    <option value="line">折線圖</option>
+                                    <option value="bar">長條圖</option>
+                                    <option value="pie">圓餅圖</option>
+                                </select>
+                            </div>
+                            <button class="ui-btn btn-primary" onclick="previewCustomChart()" style="width: 100%;">生成預覽</button>
+                        </div>
+                        
+                        <!-- Preview Area -->
+                        <div class="export-preview-area hidden" id="export-preview-area" style="padding: 0 16px 16px 16px;">
+                            <div class="divider my-2"></div>
+                            <h4 class="section-title" style="font-size: 14px; margin-bottom: 8px;">預覽結果</h4>
+                            <div class="preview-canvas-container" id="preview-canvas-wrapper" style="background: white; padding: 16px; border-radius: 8px; border: 1px solid var(--border-color);">
+                                <h3 id="preview-chart-title" style="text-align: center; color: #333; margin-bottom: 12px; font-family: sans-serif; font-size: 16px;">資料統計圖</h3>
+                                <div style="position: relative; height: 250px; width: 100%;">
+                                    <canvas id="preview-chart"></canvas>
+                                </div>
+                            </div>
+                            <button class="ui-btn btn-success mt-3" onclick="downloadCustomChart()" style="width: 100%;">下載 PNG</button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </main>
+
+    <script src="script.js?v=5"></script>
+</body>
+</html>
